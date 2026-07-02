@@ -1,0 +1,72 @@
+"""Local API server: wraps the pipeline for the dashboard frontend."""
+
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import PlainTextResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+
+from edgecast.edge import DEFAULT_EDGE_THRESHOLD
+from edgecast.jsonio import ScenarioValidationError, build_output, read_scenarios_file
+from edgecast.pipeline import analyze
+
+WEB_DIST = Path(__file__).resolve().parents[2] / "web" / "dist"
+
+
+class AnalyzeRequest(BaseModel):
+    file: str
+    edge_threshold: float = Field(default=DEFAULT_EDGE_THRESHOLD, ge=0.0, le=1.0)
+
+
+def create_app(fixtures_dir: Path, web_dist: Path | None = None) -> FastAPI:
+    app = FastAPI(title="EdgeCast")
+
+    @app.get("/api/scenario-files")
+    def scenario_files() -> dict:
+        files = sorted(p.name for p in fixtures_dir.glob("*.json") if p.is_file())
+        return {"files": files}
+
+    @app.post("/api/analyze")
+    def analyze_endpoint(req: AnalyzeRequest) -> dict:
+        name = req.file
+        if (
+            "/" in name
+            or "\\" in name
+            or name in {"", ".", ".."}
+            or name != Path(name).name
+        ):
+            raise HTTPException(status_code=400, detail="file must be a bare filename")
+        path = (fixtures_dir / name).resolve()
+        if path.parent != fixtures_dir.resolve():
+            raise HTTPException(
+                status_code=400, detail="file must be inside the fixtures directory"
+            )
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail=f"no such scenario file: {name}")
+        try:
+            scenarios = read_scenarios_file(path)
+        except ScenarioValidationError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        except json.JSONDecodeError as e:
+            raise HTTPException(status_code=422, detail=f"malformed JSON: {e}")
+        results, agg = analyze(scenarios, edge_threshold=req.edge_threshold)
+        return build_output(
+            results, agg, generated_at=datetime.now(timezone.utc).isoformat()
+        )
+
+    dist = web_dist if web_dist is not None else WEB_DIST
+    if dist.is_dir():
+        app.mount("/", StaticFiles(directory=dist, html=True), name="web")
+    else:
+
+        @app.get("/", response_class=PlainTextResponse)
+        def no_build() -> str:
+            return (
+                "EdgeCast API is running. Frontend build not found - "
+                "run: cd web && npm install && npm run build"
+            )
+
+    return app

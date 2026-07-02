@@ -20,6 +20,7 @@ from edgecast.types import (
 )
 
 SCHEMA_VERSION = "1.0"
+OUTPUT_SCHEMA_VERSION = "1.1"
 
 _MARKET_STR_FIELDS = ("market_id", "question", "location", "variable")
 
@@ -182,6 +183,14 @@ def _result_dict(r: ScenarioResult) -> dict:
         }
     return {
         "scenario_id": r.scenario_id,
+        "market": {
+            "question": r.market.question,
+            "location": r.market.location,
+            "variable": r.market.variable,
+            "comparator": r.market.comparator,
+            "threshold": r.market.threshold,
+            "event_date": r.market.event_date,
+        },
         "market_prob": _round6(r.market_prob),
         "model_prob": _round6(r.model_prob),
         "model_prob_raw": _round6(r.model_prob_raw),
@@ -199,7 +208,7 @@ def build_output(
     results: list[ScenarioResult], agg: Aggregate, generated_at: str
 ) -> dict:
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": OUTPUT_SCHEMA_VERSION,
         "generated_at": generated_at,
         "results": [_result_dict(r) for r in results],
         "aggregate": {

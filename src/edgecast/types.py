@@ -61,6 +61,7 @@ class Settlement:
 @dataclass(frozen=True)
 class ScenarioResult:
     scenario_id: str
+    market: MarketQuote
     market_prob: float
     model_prob: float      # clamped
     model_prob_raw: float

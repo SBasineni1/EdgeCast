@@ -22,6 +22,7 @@ def analyze_scenario(
         )
     return ScenarioResult(
         scenario_id=scenario.scenario_id,
+        market=scenario.market,
         market_prob=market_prob,
         model_prob=model.clamped,
         model_prob_raw=model.raw,

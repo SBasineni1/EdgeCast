@@ -41,7 +41,7 @@ def test_analyze_writes_json_to_stdout(scenarios_file, capsys):
     rc = main(["analyze", str(scenarios_file)])
     assert rc == 0
     out = json.loads(capsys.readouterr().out)
-    assert out["schema_version"] == "1.0"
+    assert out["schema_version"] == "1.1"
     assert "generated_at" in out
     assert out["results"][0]["scenario_id"] == "s1"
     assert out["aggregate"]["n_settled"] == 1
@@ -86,3 +86,31 @@ def test_malformed_json_exits_nonzero(tmp_path, capsys):
     p.write_text("{not json")
     rc = main(["analyze", str(p)])
     assert rc == 2
+
+
+def test_serve_invokes_uvicorn(monkeypatch, tmp_path):
+    import uvicorn
+
+    calls = {}
+
+    def fake_run(app, host, port):
+        calls["host"], calls["port"] = host, port
+        calls["has_analyze_route"] = any(
+            getattr(r, "path", None) == "/api/analyze" for r in app.routes
+        )
+
+    monkeypatch.setattr(uvicorn, "run", fake_run)
+    rc = main(["serve", "--port", "8123", "--fixtures-dir", str(tmp_path)])
+    assert rc == 0
+    assert calls == {"host": "127.0.0.1", "port": 8123, "has_analyze_route": True}
+
+
+def test_serve_defaults(monkeypatch):
+    import uvicorn
+
+    calls = {}
+    monkeypatch.setattr(
+        uvicorn, "run", lambda app, host, port: calls.update(port=port)
+    )
+    assert main(["serve"]) == 0
+    assert calls["port"] == 8000

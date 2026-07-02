@@ -1,0 +1,24 @@
+@import "tailwindcss";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+@import "@fontsource/jetbrains-mono/700.css";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+
+@theme {
+  --color-ink: #0a0e12;
+  --color-panel: #0e141b;
+  --color-text-1: #e6edf3;
+  --color-text-2: #8b98a5;
+  --color-text-3: #4d5866;
+  --color-hairline: rgba(255, 255, 255, 0.12);
+  --color-signal: #ff6a00;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: "Inter", system-ui, sans-serif;
+}
+
+body {
+  background: var(--color-ink);
+  color: var(--color-text-1);
+  font-family: var(--font-mono);
+}

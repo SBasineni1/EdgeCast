@@ -3,6 +3,7 @@ import copy
 import pytest
 
 from edgecast.jsonio import (
+    OUTPUT_SCHEMA_VERSION,
     SCHEMA_VERSION,
     ScenarioValidationError,
     build_output,
@@ -96,9 +97,17 @@ def test_build_output_shape_and_rounding():
     scenarios = load_scenarios(VALID)
     results, agg = analyze(scenarios)
     out = build_output(results, agg, generated_at="2026-07-02T18:00:00+00:00")
-    assert out["schema_version"] == SCHEMA_VERSION
-    assert out["generated_at"] == "2026-07-02T18:00:00+00:00"
     r = out["results"][0]
+    assert out["schema_version"] == OUTPUT_SCHEMA_VERSION
+    assert r["market"] == {
+        "question": "NYC high temp >= 90F on 2026-07-05?",
+        "location": "NYC",
+        "variable": "high_temp_f",
+        "comparator": ">=",
+        "threshold": 90.0,
+        "event_date": "2026-07-05",
+    }
+    assert out["generated_at"] == "2026-07-02T18:00:00+00:00"
     assert r["scenario_id"] == "nyc-high-2026-07-05"
     assert r["market_prob"] == 0.72
     # 3 of 5 members >= 90 -> raw 0.6, clamp bounds [1/6, 5/6] leave it alone

@@ -33,11 +33,22 @@ def _build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_EDGE_THRESHOLD,
         help=f"|edge| at or above this is flagged (default {DEFAULT_EDGE_THRESHOLD})",
     )
+    p_serve = sub.add_parser("serve", help="serve the dashboard API and UI locally")
+    p_serve.add_argument("--port", type=int, default=8000)
+    p_serve.add_argument(
+        "--fixtures-dir", default="fixtures", help="directory of scenario JSON files"
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
+    if args.command == "serve":
+        return _serve(args)
+    return _analyze(args)
+
+
+def _analyze(args) -> int:
     try:
         scenarios = read_scenarios_file(args.scenarios_file)
     except (ScenarioValidationError, OSError, json.JSONDecodeError) as e:
@@ -52,6 +63,23 @@ def main(argv: list[str] | None = None) -> int:
         Path(args.output).write_text(text + "\n", encoding="utf-8")
     else:
         print(text)
+    return 0
+
+
+def _serve(args) -> int:
+    try:
+        import uvicorn
+
+        from edgecast.server import create_app
+    except ImportError:
+        print(
+            "error: server dependencies not installed - run: uv sync --extra server",
+            file=sys.stderr,
+        )
+        return 2
+    app = create_app(Path(args.fixtures_dir))
+    print(f"EdgeCast serving on http://127.0.0.1:{args.port}")
+    uvicorn.run(app, host="127.0.0.1", port=args.port)
     return 0
 
 
