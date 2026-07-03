@@ -130,3 +130,35 @@ def test_build_output_null_settlement_and_aggregate():
     assert out["results"][0]["settlement"] is None
     assert out["aggregate"]["mean_brier_market"] is None
     assert out["aggregate"]["better_calibrated"] is None
+
+
+def test_between_scenario_loads_and_outputs_bounds():
+    data = copy.deepcopy(VALID)
+    m = data["scenarios"][0]["market"]
+    del m["threshold"]
+    m.update(comparator="between", threshold_low=88.0, threshold_high=89.0)
+    scenarios = load_scenarios(data)
+    assert scenarios[0].market.threshold_low == 88.0
+    results, agg = analyze(scenarios)
+    out = build_output(results, agg, generated_at="2026-07-03T00:00:00+00:00")
+    mb = out["results"][0]["market"]
+    assert mb["threshold_low"] == 88.0 and mb["threshold_high"] == 89.0
+    assert "threshold" not in mb
+
+
+@pytest.mark.parametrize(
+    ("mutate", "field"),
+    [
+        (lambda m: m.update(comparator="between", threshold_low=88.0), "threshold_high"),
+        (lambda m: m.update(comparator="between", threshold_high=89.0), "threshold_low"),
+        (lambda m: m.update(comparator="between", threshold_low=90.0, threshold_high=88.0), "threshold_low"),
+        (lambda m: (m.pop("threshold"), m.update(comparator="between", threshold=90.0, threshold_low=88.0, threshold_high=89.0)), "threshold"),
+        (lambda m: m.update(threshold_low=88.0), "threshold_low"),
+    ],
+)
+def test_between_shape_violations_rejected(mutate, field):
+    data = copy.deepcopy(VALID)
+    mutate(data["scenarios"][0]["market"])
+    with pytest.raises(ScenarioValidationError) as exc:
+        load_scenarios(data)
+    assert field in str(exc.value)

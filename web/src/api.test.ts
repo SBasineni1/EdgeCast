@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { analyze, getScenarioFiles, InputError } from "./api";
+import { analyze, analyzeLive, getScenarioFiles, InputError, UpstreamError } from "./api";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -51,4 +51,24 @@ it("analyze throws plain Error (not InputError) on server failure", async () => 
   expect(err).toBeInstanceOf(Error);
   expect(err).not.toBeInstanceOf(InputError);
   expect((err as Error).message).toBe("HTTP 500");
+});
+
+it("analyzeLive hits /api/live with the threshold", async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValue(fakeResponse(200, { results: [], aggregate: {} }));
+  vi.stubGlobal("fetch", fetchMock);
+  await analyzeLive(0.07);
+  expect(fetchMock).toHaveBeenCalledWith("/api/live?edge_threshold=0.07");
+});
+
+it("analyzeLive throws UpstreamError on 502", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(
+      fakeResponse(502, { detail: "no live data available: NYC: timeout" }),
+    ),
+  );
+  await expect(analyzeLive(0.05)).rejects.toThrow(UpstreamError);
+  await expect(analyzeLive(0.05)).rejects.toThrow("NYC");
 });

@@ -11,9 +11,7 @@ def analyze_scenario(
     scenario: Scenario, edge_threshold: float = DEFAULT_EDGE_THRESHOLD
 ) -> ScenarioResult:
     market_prob = market_implied_probability(scenario.market)
-    model = model_implied_probability(
-        scenario.forecast, scenario.market.comparator, scenario.market.threshold
-    )
+    model = model_implied_probability(scenario.forecast, scenario.market)
     edge = compute_edge(market_prob, model.clamped, edge_threshold)
     settlement = None
     if scenario.observation is not None:

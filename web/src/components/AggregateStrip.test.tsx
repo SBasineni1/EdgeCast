@@ -28,6 +28,29 @@ it.each([
   expect(screen.getByTestId("verdict")).toHaveTextContent(text);
 });
 
+const verification = {
+  window_days: 30, model: "gfs_seamless", n_markets: 214, n_days: 29,
+  mean_brier_market: 0.091, mean_brier_model: 0.117,
+  hit_rate_market: 0.72, hit_rate_model: 0.62,
+  better_calibrated: "market" as const,
+  by_city: {}, yesterday: {}, kalshi_mismatches: [], verification_failed: [],
+};
+
+it("verification variant shows window stats and qualified verdict", () => {
+  render(<AggregateStrip aggregate={agg} verification={verification} />);
+  expect(screen.getByText("214")).toBeInTheDocument();
+  expect(screen.getByText(".091")).toBeInTheDocument();
+  expect(screen.getByText("72% / 62%")).toBeInTheDocument();
+  expect(screen.getByTestId("verdict")).toHaveTextContent(
+    "MARKET BETTER CALIBRATED · VERIFIED: LAST 30 DAYS",
+  );
+});
+
+it("null verification shows awaiting-backfill state", () => {
+  render(<AggregateStrip aggregate={agg} verification={null} />);
+  expect(screen.getByTestId("verdict")).toHaveTextContent("AWAITING VERIFICATION");
+});
+
 it("shows awaiting state when nothing is settled", () => {
   render(
     <AggregateStrip

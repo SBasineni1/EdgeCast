@@ -1,6 +1,6 @@
 """Settlement stage: observation -> outcome, Brier scores for both sides."""
 
-from edgecast.conditions import satisfies
+from edgecast.conditions import satisfies_market
 from edgecast.types import MarketQuote, Observation, Settlement
 
 
@@ -16,11 +16,7 @@ def settle(
     clamped model probability is scored, keeping scoring consistent with
     the probability reported upstream.
     """
-    outcome = (
-        1
-        if satisfies(observation.observed_value, market.comparator, market.threshold)
-        else 0
-    )
+    outcome = 1 if satisfies_market(observation.observed_value, market) else 0
     brier_market = (market_prob - outcome) ** 2
     brier_model = (model_prob - outcome) ** 2
     return Settlement(

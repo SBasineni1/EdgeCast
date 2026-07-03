@@ -20,7 +20,7 @@ from edgecast.types import (
 )
 
 SCHEMA_VERSION = "1.0"
-OUTPUT_SCHEMA_VERSION = "1.1"
+OUTPUT_SCHEMA_VERSION = "1.2"
 
 _MARKET_STR_FIELDS = ("market_id", "question", "location", "variable")
 
@@ -49,7 +49,7 @@ def _require_str(scenario_id: str, field: str, value: object) -> str:
 def _parse_market(scenario_id: str, raw: object) -> MarketQuote:
     if not isinstance(raw, dict):
         _fail(scenario_id, "market", "must be an object")
-    for key in (*_MARKET_STR_FIELDS, "comparator", "threshold", "event_date", "yes_price"):
+    for key in (*_MARKET_STR_FIELDS, "comparator", "event_date", "yes_price"):
         if key not in raw:
             _fail(scenario_id, f"market.{key}", "is required")
     comparator = _require_str(scenario_id, "market.comparator", raw["comparator"])
@@ -59,7 +59,30 @@ def _parse_market(scenario_id: str, raw: object) -> MarketQuote:
             "market.comparator",
             f"must be one of {COMPARATORS} (got {comparator!r})",
         )
-    threshold = _require_number(scenario_id, "market.threshold", raw["threshold"])
+    has_t = "threshold" in raw
+    has_lo = "threshold_low" in raw
+    has_hi = "threshold_high" in raw
+    if comparator == "between":
+        if not has_lo:
+            _fail(scenario_id, "market.threshold_low", "is required for between markets")
+        if not has_hi:
+            _fail(scenario_id, "market.threshold_high", "is required for between markets")
+        t_lo = _require_number(scenario_id, "market.threshold_low", raw["threshold_low"])
+        t_hi = _require_number(scenario_id, "market.threshold_high", raw["threshold_high"])
+        if t_lo > t_hi:
+            _fail(scenario_id, "market.threshold_low", f"must be <= threshold_high (got {t_lo} > {t_hi})")
+        if has_t:
+            _fail(scenario_id, "market.threshold", "must be omitted for between markets")
+        threshold, threshold_low, threshold_high = None, t_lo, t_hi
+    else:
+        if has_lo:
+            _fail(scenario_id, "market.threshold_low", "bounds are only valid for between markets")
+        if has_hi:
+            _fail(scenario_id, "market.threshold_high", "bounds are only valid for between markets")
+        if not has_t:
+            _fail(scenario_id, "market.threshold", "is required")
+        threshold = _require_number(scenario_id, "market.threshold", raw["threshold"])
+        threshold_low, threshold_high = None, None
     yes_price = _require_number(scenario_id, "market.yes_price", raw["yes_price"])
     if not 0.0 < yes_price < 1.0:
         _fail(
@@ -78,9 +101,11 @@ def _parse_market(scenario_id: str, raw: object) -> MarketQuote:
         location=_require_str(scenario_id, "market.location", raw["location"]),
         variable=_require_str(scenario_id, "market.variable", raw["variable"]),
         comparator=comparator,
-        threshold=threshold,
         event_date=event_date,
         yes_price=yes_price,
+        threshold=threshold,
+        threshold_low=threshold_low,
+        threshold_high=threshold_high,
     )
 
 
@@ -181,16 +206,21 @@ def _result_dict(r: ScenarioResult) -> dict:
             "brier_model": _round6(r.settlement.brier_model),
             "brier_diff": _round6(r.settlement.brier_diff),
         }
+    market_block: dict = {
+        "question": r.market.question,
+        "location": r.market.location,
+        "variable": r.market.variable,
+        "comparator": r.market.comparator,
+    }
+    if r.market.comparator == "between":
+        market_block["threshold_low"] = r.market.threshold_low
+        market_block["threshold_high"] = r.market.threshold_high
+    else:
+        market_block["threshold"] = r.market.threshold
+    market_block["event_date"] = r.market.event_date
     return {
         "scenario_id": r.scenario_id,
-        "market": {
-            "question": r.market.question,
-            "location": r.market.location,
-            "variable": r.market.variable,
-            "comparator": r.market.comparator,
-            "threshold": r.market.threshold,
-            "event_date": r.market.event_date,
-        },
+        "market": market_block,
         "market_prob": _round6(r.market_prob),
         "model_prob": _round6(r.model_prob),
         "model_prob_raw": _round6(r.model_prob_raw),

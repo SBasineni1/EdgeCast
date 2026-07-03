@@ -12,7 +12,8 @@
   --color-text-2: #8b98a5;
   --color-text-3: #4d5866;
   --color-hairline: rgba(255, 255, 255, 0.12);
-  --color-signal: #ff6a00;
+  --color-up: #2ecc71;
+  --color-down: #ff4d4d;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
   --font-sans: "Inter", system-ui, sans-serif;
 }

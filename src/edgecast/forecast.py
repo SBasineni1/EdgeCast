@@ -1,11 +1,11 @@
 """Forecast stage: ensemble members -> model-implied probability."""
 
-from edgecast.conditions import satisfies
-from edgecast.types import EnsembleForecast, ModelProbability
+from edgecast.conditions import satisfies_market
+from edgecast.types import EnsembleForecast, MarketQuote, ModelProbability
 
 
 def model_implied_probability(
-    forecast: EnsembleForecast, comparator: str, threshold: float
+    forecast: EnsembleForecast, market: MarketQuote
 ) -> ModelProbability:
     """Fraction of ensemble members satisfying the market condition.
 
@@ -16,7 +16,7 @@ def model_implied_probability(
     n = len(forecast.members)
     if n == 0:
         raise ValueError("ensemble has no members")
-    hits = sum(1 for m in forecast.members if satisfies(m, comparator, threshold))
+    hits = sum(1 for m in forecast.members if satisfies_market(m, market))
     raw = hits / n
     lo, hi = 1 / (n + 1), n / (n + 1)
     clamped = min(max(raw, lo), hi)

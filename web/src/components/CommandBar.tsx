@@ -1,4 +1,7 @@
 interface CommandBarProps {
+  mode: "live" | "fixtures";
+  onMode: (m: "live" | "fixtures") => void;
+  updatedAt: string | null;
   files: string[];
   selected: string | null;
   onSelect: (f: string) => void;
@@ -9,6 +12,9 @@ interface CommandBarProps {
 }
 
 export function CommandBar({
+  mode,
+  onMode,
+  updatedAt,
   files,
   selected,
   onSelect,
@@ -22,6 +28,20 @@ export function CommandBar({
   return (
     <header className="flex items-center gap-6 border-b border-hairline px-6 py-3">
       <span className="text-sm font-bold tracking-[0.35em]">EDGECAST</span>
+      <nav className="flex gap-1" aria-label="mode">
+        {(["live", "fixtures"] as const).map((m) => (
+          <button
+            key={m}
+            onClick={() => onMode(m)}
+            className={`border px-2 py-1 text-xs tracking-widest ${
+              m === mode ? "border-text-2 text-text-1" : "border-hairline text-text-3"
+            }`}
+          >
+            {m.toUpperCase()}
+          </button>
+        ))}
+      </nav>
+      {mode === "fixtures" && (
       <nav className="flex gap-1" aria-label="scenario file">
         {files.length <= 4 ? (
           files.map((f) => (
@@ -51,7 +71,14 @@ export function CommandBar({
           </select>
         )}
       </nav>
+      )}
       <div className="ml-auto flex items-center gap-4">
+        {updatedAt !== null && (
+          <span className="text-xs text-text-3 tabular-nums">
+            UPDATED{" "}
+            {new Date(updatedAt).toLocaleTimeString("en-US", { hour12: false })}
+          </span>
+        )}
         {busy && <span className="text-xs text-text-3">ANALYZING…</span>}
         <div className="flex items-center gap-2 text-xs">
           <span className="tracking-widest text-text-3">FLAG ≥</span>

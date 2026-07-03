@@ -10,9 +10,11 @@ class MarketQuote:
     location: str
     variable: str
     comparator: str  # one of edgecast.conditions.COMPARATORS
-    threshold: float
     event_date: str  # ISO date, e.g. "2026-07-05"
     yes_price: float  # strictly between 0 and 1
+    threshold: float | None = None       # binary comparators only
+    threshold_low: float | None = None   # between only, inclusive
+    threshold_high: float | None = None  # between only, inclusive
 
 
 @dataclass(frozen=True)

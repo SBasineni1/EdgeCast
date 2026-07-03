@@ -41,7 +41,7 @@ def test_analyze_writes_json_to_stdout(scenarios_file, capsys):
     rc = main(["analyze", str(scenarios_file)])
     assert rc == 0
     out = json.loads(capsys.readouterr().out)
-    assert out["schema_version"] == "1.1"
+    assert out["schema_version"] == "1.2"
     assert "generated_at" in out
     assert out["results"][0]["scenario_id"] == "s1"
     assert out["aggregate"]["n_settled"] == 1
@@ -114,3 +114,21 @@ def test_serve_defaults(monkeypatch):
     )
     assert main(["serve"]) == 0
     assert calls["port"] == 8000
+
+
+def test_backfill_invokes_verifier(monkeypatch, tmp_path):
+    import edgecast.verify as verify_mod
+    from edgecast.verify import VerifyReport
+
+    seen = {}
+
+    def fake_verify(dates, store, kc, mc, model="gfs_seamless"):
+        seen["dates"] = dates
+        return VerifyReport(
+            dates_attempted=dates, n_markets_verified=7, failures=[], mismatches=[]
+        )
+
+    monkeypatch.setattr(verify_mod, "verify_days", fake_verify)
+    rc = main(["backfill", "--days", "3", "--db", str(tmp_path / "b.db")])
+    assert rc == 0
+    assert len(seen["dates"]) == 3

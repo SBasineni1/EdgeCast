@@ -38,6 +38,13 @@ def _build_parser() -> argparse.ArgumentParser:
     p_serve.add_argument(
         "--fixtures-dir", default="fixtures", help="directory of scenario JSON files"
     )
+    p_serve.add_argument("--db", default="data/edgecast.db")
+    p_serve.add_argument("--verify-days", type=int, default=30)
+    p_backfill = sub.add_parser(
+        "backfill", help="verify past days of settled markets into the local store"
+    )
+    p_backfill.add_argument("--days", type=int, default=30)
+    p_backfill.add_argument("--db", default="data/edgecast.db")
     return parser
 
 
@@ -45,6 +52,8 @@ def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     if args.command == "serve":
         return _serve(args)
+    if args.command == "backfill":
+        return _backfill(args)
     return _analyze(args)
 
 
@@ -66,6 +75,29 @@ def _analyze(args) -> int:
     return 0
 
 
+def _backfill(args) -> int:
+    from datetime import date, timedelta
+
+    import httpx
+
+    import edgecast.verify as verify_mod
+    from edgecast.store import Store
+
+    yesterday = date.today() - timedelta(days=1)
+    dates = [(yesterday - timedelta(days=i)).isoformat() for i in range(args.days)]
+    store = Store(args.db)
+    with httpx.Client() as kc, httpx.Client() as mc:
+        report = verify_mod.verify_days(dates, store, kc, mc)
+    print(
+        f"backfill: {len(report.dates_attempted)} dates attempted, "
+        f"{report.n_markets_verified} markets verified, "
+        f"{len(report.failures)} failures, {len(report.mismatches)} kalshi mismatches"
+    )
+    for f in report.failures[:20]:
+        print(f"  failed {f['city']} {f['date']} [{f['stage']}]: {f['reason']}")
+    return 0 if report.n_markets_verified > 0 or not report.failures else 1
+
+
 def _serve(args) -> int:
     try:
         import uvicorn
@@ -77,7 +109,9 @@ def _serve(args) -> int:
             file=sys.stderr,
         )
         return 2
-    app = create_app(Path(args.fixtures_dir))
+    app = create_app(
+        Path(args.fixtures_dir), db_path=args.db, verify_days=args.verify_days
+    )
     print(f"EdgeCast serving on http://127.0.0.1:{args.port}")
     uvicorn.run(app, host="127.0.0.1", port=args.port)
     return 0

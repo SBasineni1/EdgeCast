@@ -3,6 +3,9 @@ import { expect, it, vi } from "vitest";
 import { CommandBar } from "./CommandBar";
 
 const props = {
+  mode: "fixtures" as const,
+  onMode: vi.fn(),
+  updatedAt: null,
   files: ["a.json", "b.json"],
   selected: "a.json",
   onSelect: vi.fn(),
@@ -11,6 +14,16 @@ const props = {
   onAnalyze: vi.fn(),
   busy: false,
 };
+
+it("toggles mode and hides file picker in live mode", () => {
+  const onMode = vi.fn();
+  const { rerender } = render(<CommandBar {...props} onMode={onMode} />);
+  fireEvent.click(screen.getByRole("button", { name: "LIVE" }));
+  expect(onMode).toHaveBeenCalledWith("live");
+  rerender(<CommandBar {...props} mode="live" updatedAt="2026-07-03T12:04:31+00:00" />);
+  expect(screen.queryByRole("button", { name: "a.json" })).toBeNull();
+  expect(screen.getByText(/UPDATED/)).toBeInTheDocument();
+});
 
 it("renders segmented buttons for few files and selects on click", () => {
   render(<CommandBar {...props} />);
