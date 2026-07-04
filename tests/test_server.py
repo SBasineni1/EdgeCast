@@ -1,4 +1,5 @@
 import json
+from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -155,16 +156,19 @@ def _fake_live_result(**kw):
     base = dict(
         scenarios=[scenario], cities_ok=["NYC"], cities_failed=[],
         quotes_age_seconds=5, ensembles_age_seconds=100,
+        model_highs={"NYC": {"ncep_nbm_conus": 96.0, "gfs_hrrr": 95.0,
+                             "gfs_global": None, "consensus": 95.5}},
+        consensus_sigma={"NYC": 2.5},
     )
     base.update(kw)
     return LiveResult(**base)
 
 
-def test_live_endpoint_happy_path(client, monkeypatch):
+def test_live_endpoint_happy_path(live_client, monkeypatch):
     import edgecast.server as server_mod
 
     monkeypatch.setattr(server_mod, "build_live_scenarios", lambda *a, **k: _fake_live_result())
-    r = client.get("/api/live")
+    r = live_client.get("/api/live")
     assert r.status_code == 200
     out = r.json()
     assert out["schema_version"] == "1.2"
@@ -175,7 +179,7 @@ def test_live_endpoint_happy_path(client, monkeypatch):
     assert out["aggregate"]["n_settled"] == 0
 
 
-def test_live_endpoint_partial_failure_reported(client, monkeypatch):
+def test_live_endpoint_partial_failure_reported(live_client, monkeypatch):
     import edgecast.server as server_mod
 
     monkeypatch.setattr(
@@ -185,11 +189,11 @@ def test_live_endpoint_partial_failure_reported(client, monkeypatch):
             cities_failed=[{"city": "MIA", "reason": "kalshi: HTTP 503"}]
         ),
     )
-    out = client.get("/api/live").json()
+    out = live_client.get("/api/live").json()
     assert out["live"]["cities_failed"][0]["city"] == "MIA"
 
 
-def test_live_endpoint_total_failure_502(client, monkeypatch):
+def test_live_endpoint_total_failure_502(live_client, monkeypatch):
     import edgecast.server as server_mod
 
     monkeypatch.setattr(
@@ -200,7 +204,7 @@ def test_live_endpoint_total_failure_502(client, monkeypatch):
             cities_failed=[{"city": "NYC", "reason": "kalshi: timeout"}],
         ),
     )
-    r = client.get("/api/live")
+    r = live_client.get("/api/live")
     assert r.status_code == 502
     assert "NYC" in r.json()["detail"]
 
@@ -228,12 +232,17 @@ def seed_row(**kw) -> VerificationRow:
 def live_client(fixtures_dir, tmp_path, monkeypatch):
     import edgecast.server as server_mod
 
+    from edgecast.grade import GradeReport
     from edgecast.verify import VerifyReport
 
     monkeypatch.setattr(server_mod, "build_live_scenarios", lambda *a, **k: _fake_live_result())
     monkeypatch.setattr(
         server_mod, "run_verification",
-        lambda dates, store, kc, mc, model="gfs_seamless": VerifyReport(dates_attempted=list(dates)),
+        lambda dates, store, kc, mc, **kwargs: VerifyReport(dates_attempted=list(dates)),
+    )
+    monkeypatch.setattr(
+        server_mod, "grade_days",
+        lambda dates, ms, kc, mc: GradeReport(dates_attempted=list(dates)),
     )
     db = tmp_path / "live.db"
     Store(db).upsert([seed_row()])
@@ -241,34 +250,81 @@ def live_client(fixtures_dir, tmp_path, monkeypatch):
     return TestClient(app)
 
 
+@pytest.fixture
+def graded_client(fixtures_dir, tmp_path, monkeypatch):
+    import edgecast.server as server_mod
+
+    from edgecast.grade import GradeReport
+    from edgecast.model_store import ModelStore
+    from edgecast.verify import VerifyReport
+    from tests.test_model_store import row
+
+    d = (date.today() - timedelta(days=2)).isoformat()
+    db = tmp_path / "db.sqlite"
+    ModelStore(db).upsert([
+        row(model="consensus", d=d, pred=95.0, obs=94.0, hit=1),
+        row(model="gfs_hrrr", d=d, pred=97.0, obs=94.0, hit=0),
+    ])
+    monkeypatch.setattr(server_mod, "build_live_scenarios", lambda *a, **k: _fake_live_result())
+    monkeypatch.setattr(
+        server_mod, "run_verification",
+        lambda dates, store, kc, mc, **kwargs: VerifyReport(dates_attempted=list(dates)),
+    )
+    monkeypatch.setattr(
+        server_mod, "grade_days",
+        lambda dates, ms, kc, mc: GradeReport(dates_attempted=list(dates)),
+    )
+    app = create_app(fixtures_dir, web_dist=tmp_path / "no-dist", db_path=db)
+    return TestClient(app)
+
+
 def test_live_includes_verification_block(live_client):
     out = live_client.get("/api/live").json()
     v = out["verification"]
+    assert set(v) == {
+        "window_days", "n_markets", "n_days", "kalshi_mismatches", "verification_failed",
+    }
     assert v["window_days"] == 30
-    assert v["model"] == "gfs_seamless"
     assert v["n_markets"] == 1
-    assert v["mean_brier_market"] == 0.04
-    assert v["hit_rate_market"] == 1.0
-    assert v["better_calibrated"] == "market"
-    assert v["by_city"]["NYC"]["n_markets"] == 1
+    assert v["n_days"] == 1
     assert v["kalshi_mismatches"] == []
 
 
-def test_live_verification_yesterday_block(live_client, monkeypatch):
+def test_live_model_grades_block(graded_client):
+    body = graded_client.get("/api/live").json()
+    mg = body["model_grades"]
+    assert mg["lead"] == "day_ahead" and mg["window_days"] == 30
+    assert mg["overall"]["consensus"]["mae"] == 1.0
+    assert mg["overall"]["consensus"]["bucket_hit_rate"] == 1.0
+    assert mg["by_city"]["NYC"]["gfs_hrrr"]["bias"] == 3.0
+    assert "model_highs" in body["live"] and "consensus_sigma" in body["live"]
+
+
+def test_live_model_grades_null_on_empty_store(live_client, monkeypatch):
     import edgecast.server as server_mod
 
-    monkeypatch.setattr(server_mod, "_yesterday_iso", lambda: "2026-07-02")
-    out = live_client.get("/api/live").json()
-    y = out["verification"]["yesterday"]["NYC"]
-    assert y["observed_high"] == 88.5
-    assert y["settled_bucket"] == "88–89°"
-    assert y["source"] == "ACIS KNYC"
+    from edgecast.grade import GradeReport
+
+    monkeypatch.setattr(
+        server_mod,
+        "grade_days",
+        lambda dates, ms, kc, mc: GradeReport(dates_attempted=list(dates)),
+    )
+    body = live_client.get("/api/live").json()
+    assert body["model_grades"] is None
 
 
 def test_live_verification_null_on_store_failure(fixtures_dir, tmp_path, monkeypatch):
     import edgecast.server as server_mod
 
+    from edgecast.grade import GradeReport
+
     monkeypatch.setattr(server_mod, "build_live_scenarios", lambda *a, **k: _fake_live_result())
+    monkeypatch.setattr(
+        server_mod,
+        "grade_days",
+        lambda dates, ms, kc, mc: GradeReport(dates_attempted=list(dates)),
+    )
 
     class Boom:
         def __init__(self, *a, **k):

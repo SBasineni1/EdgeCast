@@ -117,7 +117,9 @@ def test_serve_defaults(monkeypatch):
 
 
 def test_backfill_invokes_verifier(monkeypatch, tmp_path):
+    import edgecast.grade as grade_mod
     import edgecast.verify as verify_mod
+    from edgecast.grade import GradeReport
     from edgecast.verify import VerifyReport
 
     seen = {}
@@ -129,6 +131,34 @@ def test_backfill_invokes_verifier(monkeypatch, tmp_path):
         )
 
     monkeypatch.setattr(verify_mod, "verify_days", fake_verify)
+    monkeypatch.setattr(
+        grade_mod,
+        "grade_days",
+        lambda dates, store, kc, mc: GradeReport(dates_attempted=list(dates)),
+    )
     rc = main(["backfill", "--days", "3", "--db", str(tmp_path / "b.db")])
     assert rc == 0
     assert len(seen["dates"]) == 3
+
+
+def test_backfill_reports_model_grading(monkeypatch, capsys, tmp_path):
+    import edgecast.cli as cli_mod
+    import edgecast.grade as grade_mod
+    import edgecast.verify as verify_mod
+    from edgecast.grade import GradeReport
+    from edgecast.verify import VerifyReport
+
+    monkeypatch.setattr(
+        verify_mod,
+        "verify_days",
+        lambda dates, store, kc, mc: VerifyReport(dates_attempted=list(dates)),
+    )
+    monkeypatch.setattr(
+        grade_mod,
+        "grade_days",
+        lambda dates, store, kc, mc: GradeReport(dates_attempted=list(dates), n_rows=28),
+    )
+    rc = cli_mod.main(["backfill", "--days", "2", "--db", str(tmp_path / "t.db")])
+    out = capsys.readouterr().out
+    assert "model grading: 28 model-day rows" in out
+    assert rc == 0

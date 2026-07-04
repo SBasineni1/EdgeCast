@@ -19,7 +19,7 @@ function row(id: string, comparator: string, t?: number, lo?: number, hi?: numbe
     market_prob: 0.85,
     model_prob: 0.71,
     model_prob_raw: 0.71,
-    n_members: 31,
+    n_members: 3,
     edge: {
       value: edge,
       log_odds_diff: 0.1,
@@ -35,25 +35,21 @@ const results = [
   row("lo", "<=", 93, undefined, undefined),
 ];
 
+const grades = {
+  consensus: { n_days: 28, mae: 1.5, bias: 0.1, bucket_hit_rate: 0.41 },
+  ncep_nbm_conus: { n_days: 28, mae: 2.1, bias: -0.9, bucket_hit_rate: 0.31 },
+  gfs_hrrr: { n_days: 28, mae: 2.2, bias: 0.02, bucket_hit_rate: 0.26 },
+  gfs_global: { n_days: 28, mae: 2.16, bias: 0.79, bucket_hit_rate: null },
+};
+
+const modelHighs = { ncep_nbm_conus: 96.4, gfs_hrrr: 98.0, gfs_global: 102.2, consensus: 96.2 };
+
 const props = {
   location: "AUS",
-  cityInfo: { name: "Austin", station: "Camp Mabry", series: "KXHIGHAUS" },
+  cityInfo: { name: "Austin", station: "Bergstrom Intl", series: "KXHIGHAUS" },
   results,
-  yesterday: {
-    date: "2026-07-03",
-    observed_high: 96,
-    source: "ACIS KATT",
-    settled_bucket: "96–97°",
-    brier_market: 0.054,
-    brier_model: 0.112,
-  },
-  cityStats: {
-    n_markets: 31,
-    mean_brier_market: 0.08,
-    mean_brier_model: 0.1,
-    hit_rate_market: 0.75,
-    hit_rate_model: 0.64,
-  },
+  modelHighs,
+  grades,
   mismatches: [],
 };
 
@@ -79,18 +75,28 @@ it("renders percentages and colored edges", () => {
   expect(cells[0]).toHaveTextContent("—");
 });
 
-it("renders verification footer with winner dot on lower brier", () => {
+it("shows consensus high and per-model grade lines", () => {
   render(<CityCard {...props} />);
+  expect(screen.getByText(/CONSENSUS 96\.2°/)).toBeInTheDocument();
+  expect(screen.getByText(/NBM 96\.4 · HRRR 98\.0 · GFS 102\.2/)).toBeInTheDocument();
   const footer = screen.getByTestId("verification-footer");
-  expect(footer).toHaveTextContent("OBSERVED 96°F");
-  expect(footer).toHaveTextContent("SETTLED 96–97°");
-  expect(footer).toHaveTextContent("BRIER MKT .080 ●");
-  expect(footer).toHaveTextContent("HIT 75% / 64%");
+  expect(footer.textContent).toContain("CONSENSUS · OFF BY 1.5°F · RIGHT BUCKET 41% · RUNS +0.1° WARM");
+  expect(footer.textContent).toContain("NBM · OFF BY 2.1°F · RIGHT BUCKET 31% · RUNS −0.9° COOL");
+  expect(footer.textContent).toContain("HRRR · OFF BY 2.2°F · RIGHT BUCKET 26% · NO LEAN");
+  expect(footer.textContent).toContain("GFS · OFF BY 2.2°F · RUNS +0.8° WARM");
 });
 
-it("renders unverified state without yesterday data", () => {
-  render(<CityCard {...props} yesterday={undefined} cityStats={undefined} />);
-  expect(screen.getByTestId("verification-footer")).toHaveTextContent("UNVERIFIED");
+it("marks the ladder row containing the rounded consensus", () => {
+  // consensus 96.2 -> floor(96.7) = 96 -> the 96–97° bucket carries the marker
+  render(<CityCard {...props} />);
+  const marker = screen.getByTestId("consensus-marker");
+  expect(marker.closest("[data-testid='ladder-row']")!.textContent).toContain("96–97°");
+});
+
+it("renders ungraded state without model data", () => {
+  render(<CityCard {...props} modelHighs={undefined} grades={undefined} />);
+  expect(screen.getByTestId("verification-footer")).toHaveTextContent("MODELS UNGRADED");
+  expect(screen.queryByTestId("consensus-marker")).toBeNull();
 });
 
 it("renders red mismatch warning", () => {
@@ -116,6 +122,6 @@ it("settled fixture rows show outcome instead of edge", () => {
       brier_diff: -0.038,
     },
   };
-  render(<CityCard {...props} results={[settled]} yesterday={undefined} cityStats={undefined} />);
+  render(<CityCard {...props} results={[settled]} modelHighs={undefined} grades={undefined} />);
   expect(screen.getAllByTestId("edge-cell")[0]).toHaveTextContent("YES ●");
 });

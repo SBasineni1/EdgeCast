@@ -14,6 +14,7 @@ def test_live_assembly_against_real_apis():
     import httpx
 
     from edgecast.live.assemble import build_live_scenarios
+    from edgecast.types import NormalForecast
 
     with httpx.Client() as kc, httpx.Client() as mc:
         result = build_live_scenarios(kc, mc)
@@ -21,7 +22,8 @@ def test_live_assembly_against_real_apis():
     assert result.scenarios
     s = result.scenarios[0]
     assert 0.0 < s.market.yes_price < 1.0
-    assert len(s.forecast.members) >= 10
+    assert isinstance(s.forecast, NormalForecast)
+    assert s.forecast.n_models >= 1
 
 
 def test_backfill_two_days_against_real_apis(tmp_path):

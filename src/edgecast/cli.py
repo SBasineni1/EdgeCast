@@ -81,6 +81,8 @@ def _backfill(args) -> int:
     import httpx
 
     import edgecast.verify as verify_mod
+    from edgecast.grade import grade_days
+    from edgecast.model_store import ModelStore
     from edgecast.store import Store
 
     yesterday = date.today() - timedelta(days=1)
@@ -88,14 +90,26 @@ def _backfill(args) -> int:
     store = Store(args.db)
     with httpx.Client() as kc, httpx.Client() as mc:
         report = verify_mod.verify_days(dates, store, kc, mc)
+        model_report = grade_days(dates, ModelStore(args.db), kc, mc)
     print(
         f"backfill: {len(report.dates_attempted)} dates attempted, "
         f"{report.n_markets_verified} markets verified, "
         f"{len(report.failures)} failures, {len(report.mismatches)} kalshi mismatches"
     )
+    print(
+        f"model grading: {model_report.n_rows} model-day rows, "
+        f"{len(model_report.failures)} failures"
+    )
     for f in report.failures[:20]:
         print(f"  failed {f['city']} {f['date']} [{f['stage']}]: {f['reason']}")
-    return 0 if report.n_markets_verified > 0 or not report.failures else 1
+    for f in model_report.failures[:20]:
+        print(f"  grading failed {f['city']} {f['date']} [{f['stage']}]: {f['reason']}")
+    ok = (
+        report.n_markets_verified > 0
+        or model_report.n_rows > 0
+        or (not report.failures and not model_report.failures)
+    )
+    return 0 if ok else 1
 
 
 def _serve(args) -> int:

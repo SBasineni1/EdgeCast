@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { expect, it } from "vitest";
-import type { Aggregate } from "../types";
+import type { Aggregate, ModelGrades } from "../types";
 import { AggregateStrip } from "./AggregateStrip";
 
 const agg: Aggregate = {
@@ -28,27 +28,43 @@ it.each([
   expect(screen.getByTestId("verdict")).toHaveTextContent(text);
 });
 
-const verification = {
-  window_days: 30, model: "gfs_seamless", n_markets: 214, n_days: 29,
-  mean_brier_market: 0.091, mean_brier_model: 0.117,
-  hit_rate_market: 0.72, hit_rate_model: 0.62,
-  better_calibrated: "market" as const,
-  by_city: {}, yesterday: {}, kalshi_mismatches: [], verification_failed: [],
+const modelGrades: ModelGrades = {
+  window_days: 30,
+  lead: "day_ahead",
+  overall: {
+    consensus: { n_days: 28, mae: 1.5, bias: 0.1, bucket_hit_rate: 0.41 },
+    ncep_nbm_conus: { n_days: 28, mae: 2.1, bias: -0.9, bucket_hit_rate: 0.31 },
+    gfs_hrrr: { n_days: 28, mae: 2.2, bias: 0.1, bucket_hit_rate: 0.26 },
+    gfs_global: { n_days: 28, mae: 2.2, bias: 0.8, bucket_hit_rate: 0.33 },
+  },
+  by_city: {},
 };
 
-it("verification variant shows window stats and qualified verdict", () => {
-  render(<AggregateStrip aggregate={agg} verification={verification} />);
-  expect(screen.getByText("214")).toBeInTheDocument();
-  expect(screen.getByText(".091")).toBeInTheDocument();
-  expect(screen.getByText("72% / 62%")).toBeInTheDocument();
+it("renders per-model grades with closest-model verdict", () => {
+  render(<AggregateStrip aggregate={agg} modelGrades={modelGrades} />);
   expect(screen.getByTestId("verdict")).toHaveTextContent(
-    "MARKET BETTER CALIBRATED · VERIFIED: LAST 30 DAYS",
+    "CONSENSUS CLOSEST · DAY-AHEAD · LAST 30 DAYS",
   );
+  expect(screen.getByText("1.5°")).toBeInTheDocument();
+  expect(screen.getByText("CONSENSUS RIGHT BUCKET")).toBeInTheDocument();
+  expect(screen.getByText("41%")).toBeInTheDocument();
 });
 
-it("null verification shows awaiting-backfill state", () => {
-  render(<AggregateStrip aggregate={agg} verification={null} />);
-  expect(screen.getByTestId("verdict")).toHaveTextContent("AWAITING VERIFICATION");
+it("breaks MAE ties by bucket hit rate", () => {
+  const tied: ModelGrades = {
+    ...modelGrades,
+    overall: {
+      gfs_hrrr: { n_days: 28, mae: 2.2, bias: 0.1, bucket_hit_rate: 0.4 },
+      gfs_global: { n_days: 28, mae: 2.2, bias: 0.8, bucket_hit_rate: 0.3 },
+    },
+  };
+  render(<AggregateStrip aggregate={agg} modelGrades={tied} />);
+  expect(screen.getByTestId("verdict")).toHaveTextContent("HRRR CLOSEST");
+});
+
+it("null model grades show awaiting-backfill state", () => {
+  render(<AggregateStrip aggregate={agg} modelGrades={null} />);
+  expect(screen.getByTestId("verdict")).toHaveTextContent("AWAITING MODEL GRADES");
 });
 
 it("shows awaiting state when nothing is settled", () => {

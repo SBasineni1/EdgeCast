@@ -49,45 +49,32 @@ const LIVE_OUTPUT = {
       NYC: { name: "New York", station: "Central Park", series: "KXHIGHNY" },
       CHI: { name: "Chicago", station: "Midway", series: "KXHIGHCHI" },
     },
+    model_highs: {
+      NYC: { ncep_nbm_conus: 91.4, gfs_hrrr: 92.0, gfs_global: 95.2, consensus: 91.8 },
+      CHI: { ncep_nbm_conus: 88.1, gfs_hrrr: 88.9, gfs_global: null, consensus: 88.5 },
+    },
+    consensus_sigma: { NYC: 1.6, CHI: 2.5 },
   },
   verification: {
     window_days: 30,
-    model: "gfs_seamless",
     n_markets: 214,
     n_days: 29,
-    mean_brier_market: 0.091,
-    mean_brier_model: 0.117,
-    hit_rate_market: 0.72,
-    hit_rate_model: 0.62,
-    better_calibrated: "market",
-    by_city: {
-      NYC: {
-        n_markets: 30,
-        mean_brier_market: 0.08,
-        mean_brier_model: 0.1,
-        hit_rate_market: 0.75,
-        hit_rate_model: 0.64,
-      },
-      CHI: {
-        n_markets: 28,
-        mean_brier_market: 0.09,
-        mean_brier_model: 0.12,
-        hit_rate_market: 0.71,
-        hit_rate_model: 0.6,
-      },
-    },
-    yesterday: {
-      NYC: {
-        date: "2026-07-02",
-        observed_high: 88.5,
-        source: "ACIS KNYC",
-        settled_bucket: "88–89°",
-        brier_market: 0.04,
-        brier_model: 0.16,
-      },
-    },
     kalshi_mismatches: [],
     verification_failed: [],
+  },
+  model_grades: {
+    window_days: 30,
+    lead: "day_ahead",
+    overall: {
+      consensus: { n_days: 28, mae: 1.5, bias: 0.1, bucket_hit_rate: 0.41 },
+      ncep_nbm_conus: { n_days: 28, mae: 2.1, bias: -0.9, bucket_hit_rate: 0.31 },
+      gfs_hrrr: { n_days: 28, mae: 2.2, bias: 0.1, bucket_hit_rate: 0.26 },
+      gfs_global: { n_days: 28, mae: 2.2, bias: 0.8, bucket_hit_rate: 0.33 },
+    },
+    by_city: {
+      NYC: { consensus: { n_days: 28, mae: 1.4, bias: 0.2, bucket_hit_rate: 0.45 } },
+      CHI: { consensus: { n_days: 28, mae: 1.7, bias: -0.1, bucket_hit_rate: 0.38 } },
+    },
   },
 };
 
@@ -115,6 +102,10 @@ it("boots in live mode, renders one CityCard per city, shows updated stamp", asy
   expect(screen.getByText(/CHICAGO/)).toBeInTheDocument();
   expect(screen.getByText(/MIDWAY/)).toBeInTheDocument();
   expect(screen.getByText(/UPDATED/)).toBeInTheDocument();
+  expect(screen.getByText(/CONSENSUS 91\.8°/)).toBeInTheDocument();
+  expect(screen.getByTestId("verdict")).toHaveTextContent(
+    "CONSENSUS CLOSEST · DAY-AHEAD · LAST 30 DAYS",
+  );
 });
 
 it("shows partial upstream strip", async () => {

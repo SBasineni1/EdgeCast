@@ -1,14 +1,17 @@
 """Assemble live Kalshi markets + Open-Meteo ensembles into pipeline scenarios."""
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 
 import httpx
 
+from edgecast.consensus import consensus_point, consensus_sigma, trailing_bias
 from edgecast.live.cache import TTLCache
 from edgecast.live.kalshi import fetch_markets, to_quote
-from edgecast.live.openmeteo import fetch_ensemble_high
+from edgecast.live.previous_runs import SOURCE_MODELS, fetch_live_model_highs
 from edgecast.live.stations import STATIONS
-from edgecast.types import Scenario
+from edgecast.model_store import ModelStore
+from edgecast.types import NormalForecast, Scenario
 
 QUOTES_TTL = 30.0
 ENSEMBLES_TTL = 1800.0
@@ -23,6 +26,8 @@ class LiveResult:
     cities_failed: list[dict] = field(default_factory=list)
     quotes_age_seconds: int = 0
     ensembles_age_seconds: int = 0
+    model_highs: dict[str, dict[str, float | None]] = field(default_factory=dict)
+    consensus_sigma: dict[str, float] = field(default_factory=dict)
 
 
 def _cached(cache: TTLCache, key: str, ttl: float, fetch):
@@ -42,8 +47,28 @@ def _cached(cache: TTLCache, key: str, ttl: float, fetch):
     return value, 0, None
 
 
+def _calibration(
+    model_store: ModelStore | None, city: str, models: list[str]
+) -> tuple[dict[str, float], float]:
+    """Trailing biases per model and consensus sigma; safe defaults without a store."""
+    if model_store is None:
+        return {m: 0.0 for m in models}, consensus_sigma([])
+    try:
+        biases = {
+            m: trailing_bias(model_store.trailing_errors(m, "day_ahead", city, "9999-12-31"))
+            for m in models
+        }
+        sigma = consensus_sigma(
+            model_store.trailing_errors("consensus", "day_ahead", city, "9999-12-31")
+        )
+        return biases, sigma
+    except Exception:  # noqa: BLE001 - calibration must never break the ladder
+        return {m: 0.0 for m in models}, consensus_sigma([])
+
+
 def build_live_scenarios(
-    kalshi_client: httpx.Client, meteo_client: httpx.Client
+    kalshi_client: httpx.Client, meteo_client: httpx.Client,
+    model_store: ModelStore | None = None,
 ) -> LiveResult:
     result = LiveResult(scenarios=[])
     max_q_age = 0
@@ -61,15 +86,33 @@ def build_live_scenarios(
             result.cities_failed.append({"city": st.city, "reason": "kalshi: no usable open markets"})
             continue
         event_date = quotes[0].event_date
-        forecast, e_age, e_err = _cached(
+        highs, e_age, e_err = _cached(
             ENSEMBLES_CACHE, f"{series}:{event_date}", ENSEMBLES_TTL,
-            lambda st=st, d=event_date: fetch_ensemble_high(
+            lambda st=st, d=event_date: fetch_live_model_highs(
                 st.lat, st.lon, d, st.tz, meteo_client
             ),
         )
         if e_err is not None:
             result.cities_failed.append({"city": st.city, "reason": f"open-meteo: {e_err}"})
             continue
+        available = {m: h for m, h in highs.items() if h is not None}
+        if not available:
+            result.cities_failed.append(
+                {"city": st.city, "reason": f"open-meteo: no model forecasts for {event_date}"}
+            )
+            continue
+        biases, sigma = _calibration(model_store, st.city, list(available))
+        mu = consensus_point(available, biases)
+        forecast = NormalForecast(
+            source=f"consensus({','.join(sorted(available))})",
+            issued_at=datetime.now(timezone.utc).isoformat(),
+            mu=mu, sigma=sigma, n_models=len(available),
+        )
+        result.model_highs[st.city] = {
+            **{m: highs.get(m) for m in SOURCE_MODELS},
+            "consensus": round(mu, 1),
+        }
+        result.consensus_sigma[st.city] = round(sigma, 2)
         for q in quotes:
             if q.event_date != event_date:
                 continue  # one event date per refresh keeps one ensemble per city

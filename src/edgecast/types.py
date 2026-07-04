@@ -25,6 +25,15 @@ class EnsembleForecast:
 
 
 @dataclass(frozen=True)
+class NormalForecast:
+    source: str
+    issued_at: str  # ISO datetime
+    mu: float       # consensus predicted high, deg F
+    sigma: float    # calibrated error spread, deg F
+    n_models: int   # source models blended
+
+
+@dataclass(frozen=True)
 class Observation:
     observed_value: float
 
@@ -33,7 +42,7 @@ class Observation:
 class Scenario:
     scenario_id: str
     market: MarketQuote
-    forecast: EnsembleForecast
+    forecast: EnsembleForecast | NormalForecast
     observation: Observation | None = None
 
 

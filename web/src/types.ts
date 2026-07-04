@@ -22,6 +22,8 @@ export interface LiveInfo {
   quotes_age_seconds: number;
   ensembles_age_seconds: number;
   cities: Record<string, CityInfo>;
+  model_highs: Record<string, Record<string, number | null>>;
+  consensus_sigma: Record<string, number | null>;
 }
 
 export interface EdgeMetrics {
@@ -57,22 +59,28 @@ export interface Aggregate {
   better_calibrated: "model" | "market" | "tie" | null;
 }
 
-export interface CityWindowStats {
-  n_markets: number;
-  mean_brier_market: number;
-  mean_brier_model: number;
-  hit_rate_market: number;
-  hit_rate_model: number;
+export interface ModelGradeStats {
+  n_days: number;
+  mae: number;
+  bias: number;
+  bucket_hit_rate: number | null;
 }
 
-export interface YesterdayInfo {
-  date: string;
-  observed_high: number;
-  source: string;
-  settled_bucket: string | null;
-  brier_market: number;
-  brier_model: number;
+export interface ModelGrades {
+  window_days: number;
+  lead: string;
+  overall: Record<string, ModelGradeStats>;
+  by_city: Record<string, Record<string, ModelGradeStats>>;
 }
+
+export const MODEL_NAMES: Record<string, string> = {
+  consensus: "CONSENSUS",
+  ncep_nbm_conus: "NBM",
+  gfs_hrrr: "HRRR",
+  gfs_global: "GFS",
+};
+
+export const MODEL_ORDER = ["consensus", "ncep_nbm_conus", "gfs_hrrr", "gfs_global"];
 
 export interface KalshiMismatch {
   market_id: string;
@@ -82,16 +90,8 @@ export interface KalshiMismatch {
 
 export interface VerificationInfo {
   window_days: number;
-  model: string;
   n_markets: number;
   n_days: number;
-  mean_brier_market: number;
-  mean_brier_model: number;
-  hit_rate_market: number;
-  hit_rate_model: number;
-  better_calibrated: "market" | "model" | "tie";
-  by_city: Record<string, CityWindowStats>;
-  yesterday: Record<string, YesterdayInfo>;
   kalshi_mismatches: KalshiMismatch[];
   verification_failed: { city: string; stage: string; reason: string }[];
 }
@@ -103,4 +103,5 @@ export interface AnalysisOutput {
   aggregate: Aggregate;
   live?: LiveInfo;
   verification?: VerificationInfo | null;
+  model_grades?: ModelGrades | null;
 }

@@ -150,7 +150,7 @@ export default function App() {
         <div className={`transition-opacity ${busy ? "opacity-40" : ""}`}>
           <AggregateStrip
             aggregate={output.aggregate}
-            verification={mode === "live" ? (output.verification ?? null) : undefined}
+            modelGrades={mode === "live" ? (output.model_grades ?? null) : undefined}
           />
           <div className="grid grid-cols-1 gap-4 px-6 py-5 md:grid-cols-2 xl:grid-cols-3">
             {groups.map(([location, results]) => (
@@ -167,8 +167,8 @@ export default function App() {
                   location={location}
                   cityInfo={cities[location]}
                   results={results}
-                  yesterday={output.verification?.yesterday?.[location]}
-                  cityStats={output.verification?.by_city?.[location]}
+                  modelHighs={output.live?.model_highs?.[location]}
+                  grades={output.model_grades?.by_city?.[location]}
                   mismatches={
                     output.verification?.kalshi_mismatches?.filter((m) =>
                       cities[location]

@@ -11,11 +11,13 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from edgecast.edge import DEFAULT_EDGE_THRESHOLD
+from edgecast.grade import grade_days
 from edgecast.jsonio import ScenarioValidationError, build_output, read_scenarios_file
 from edgecast.live.assemble import build_live_scenarios
 from edgecast.live.stations import STATIONS
+from edgecast.model_store import ModelStore
 from edgecast.pipeline import analyze
-from edgecast.store import Store, bucket_label
+from edgecast.store import Store
 from edgecast.verify import verify_days as run_verification
 
 WEB_DIST = Path(__file__).resolve().parents[2] / "web" / "dist"
@@ -24,12 +26,6 @@ WEB_DIST = Path(__file__).resolve().parents[2] / "web" / "dist"
 class AnalyzeRequest(BaseModel):
     file: str
     edge_threshold: float = Field(default=DEFAULT_EDGE_THRESHOLD, ge=0.0, le=1.0)
-
-
-def _yesterday_iso() -> str:
-    from datetime import date, timedelta
-
-    return (date.today() - timedelta(days=1)).isoformat()
 
 
 def _window_dates(days: int) -> list[str]:
@@ -90,7 +86,11 @@ def create_app(
     def live_endpoint(edge_threshold: float = DEFAULT_EDGE_THRESHOLD) -> dict:
         if not 0.0 <= edge_threshold <= 1.0:
             raise HTTPException(status_code=422, detail="edge_threshold must be in [0, 1]")
-        live = build_live_scenarios(kalshi_client, meteo_client)
+        try:
+            model_store: ModelStore | None = ModelStore(db_path)
+        except Exception:  # noqa: BLE001
+            model_store = None
+        live = build_live_scenarios(kalshi_client, meteo_client, model_store)
         if not live.cities_ok:
             reasons = "; ".join(f"{f['city']}: {f['reason']}" for f in live.cities_failed)
             raise HTTPException(status_code=502, detail=f"no live data available: {reasons}")
@@ -104,6 +104,8 @@ def create_app(
             "cities_failed": live.cities_failed,
             "quotes_age_seconds": live.quotes_age_seconds,
             "ensembles_age_seconds": live.ensembles_age_seconds,
+            "model_highs": live.model_highs,
+            "consensus_sigma": live.consensus_sigma,
             "cities": {
                 st.city: {"name": st.name, "station": st.station, "series": st.series}
                 for st in STATIONS.values()
@@ -123,48 +125,10 @@ def create_app(
             if stats is None:
                 out["verification"] = None
             else:
-                yesterday = _yesterday_iso()
-                y_rows = store.rows_for_date(model, yesterday)
-                y_by_city: dict[str, dict] = {}
-                for r in y_rows:
-                    entry = y_by_city.setdefault(
-                        r.city,
-                        {"date": yesterday, "observed_high": r.observed_high,
-                         "source": r.observed_source, "settled_bucket": None,
-                         "brier_market": 0.0, "brier_model": 0.0, "_n": 0},
-                    )
-                    entry["_n"] += 1
-                    entry["brier_market"] += r.brier_market
-                    entry["brier_model"] += r.brier_model
-                    if r.outcome == 1:
-                        entry["settled_bucket"] = bucket_label(
-                            r.comparator, r.threshold, r.threshold_low, r.threshold_high
-                        )
-                for entry in y_by_city.values():
-                    n = entry.pop("_n")
-                    entry["brier_market"] = round(entry["brier_market"] / n, 6)
-                    entry["brier_model"] = round(entry["brier_model"] / n, 6)
                 out["verification"] = {
                     "window_days": verify_days,
-                    "model": model,
                     "n_markets": stats.n_markets,
                     "n_days": stats.n_days,
-                    "mean_brier_market": round(stats.market.mean_brier, 6),
-                    "mean_brier_model": round(stats.model.mean_brier, 6),
-                    "hit_rate_market": round(stats.market.hit_rate, 4),
-                    "hit_rate_model": round(stats.model.hit_rate, 4),
-                    "better_calibrated": stats.better_calibrated,
-                    "by_city": {
-                        city: {
-                            "n_markets": cs.n_markets,
-                            "mean_brier_market": round(cs.market.mean_brier, 6),
-                            "mean_brier_model": round(cs.model.mean_brier, 6),
-                            "hit_rate_market": round(cs.market.hit_rate, 4),
-                            "hit_rate_model": round(cs.model.hit_rate, 4),
-                        }
-                        for city, cs in store.city_stats(model, since).items()
-                    },
-                    "yesterday": y_by_city,
                     "kalshi_mismatches": [
                         {"market_id": r.market_id, "kalshi_result": r.kalshi_result,
                          "edgecast_outcome": r.outcome}
@@ -177,6 +141,37 @@ def create_app(
             out["live"]["cities_failed"].append(
                 {"city": "*", "reason": f"verification store: {type(e).__name__}: {e}"}
             )
+        try:
+            if model_store is None:
+                out["model_grades"] = None
+            else:
+                m_dates = _window_dates(verify_days)
+                m_missing = model_store.dates_missing("day_ahead", m_dates)[:3]
+                if m_missing:
+                    grade_days(m_missing, model_store, kalshi_client, meteo_client)
+                overall = model_store.overall_grades("day_ahead", min(m_dates))
+                if not overall:
+                    out["model_grades"] = None
+                else:
+                    def _grade_json(g):
+                        return {
+                            "n_days": g.n_days, "mae": round(g.mae, 2),
+                            "bias": round(g.bias, 2),
+                            "bucket_hit_rate": round(g.bucket_hit_rate, 4)
+                            if g.bucket_hit_rate is not None else None,
+                        }
+                    out["model_grades"] = {
+                        "window_days": verify_days,
+                        "lead": "day_ahead",
+                        "overall": {m: _grade_json(g) for m, g in overall.items()},
+                        "by_city": {
+                            city: {m: _grade_json(g) for m, g in models.items()}
+                            for city, models in
+                            model_store.city_grades("day_ahead", min(m_dates)).items()
+                        },
+                    }
+        except Exception:  # noqa: BLE001 - grading must never break the ladder
+            out["model_grades"] = None
         return out
 
     dist = web_dist if web_dist is not None else WEB_DIST
