@@ -14,6 +14,10 @@ FIXTURE = json.loads(
 def test_stations_have_acis_sids():
     assert STATIONS["KXHIGHAUS"].acis_sid == "KAUS"  # Kalshi settles Bergstrom
     assert STATIONS["KXHIGHNY"].acis_sid == "KNYC"
+    assert STATIONS["KXHIGHTHOU"].acis_sid == "KHOU"  # Hobby, not Intercontinental (KIAH 1/6)
+    assert STATIONS["KXHIGHTDAL"].acis_sid == "KDFW"  # not Love Field
+    assert STATIONS["KXHIGHTDC"].acis_sid == "KDCA"   # not Dulles/BWI
+    assert len(STATIONS) == 20
     assert all(s.acis_sid.startswith("K") for s in STATIONS.values())
 
 
