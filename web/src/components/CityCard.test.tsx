@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { expect, it } from "vitest";
 import type { ScenarioResult } from "../types";
 import { CityCard } from "./CityCard";
@@ -91,6 +91,16 @@ it("marks the ladder row containing the rounded consensus", () => {
   render(<CityCard {...props} />);
   const marker = screen.getByTestId("consensus-marker");
   expect(marker.closest("[data-testid='ladder-row']")!.textContent).toContain("96–97°");
+});
+
+it("model skill panel is collapsed by default and toggles", () => {
+  render(<CityCard {...props} />);
+  const toggle = screen.getByTestId("skill-toggle");
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "true");
+  fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
 });
 
 it("renders ungraded state without model data", () => {

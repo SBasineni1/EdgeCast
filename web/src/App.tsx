@@ -1,17 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  analyze,
-  analyzeLive,
-  getScenarioFiles,
-  InputError,
-  UpstreamError,
-} from "./api";
+import gsap from "gsap";
+import { analyzeLive, InputError, UpstreamError } from "./api";
 import type { AnalysisOutput, ScenarioResult } from "./types";
 import { AggregateStrip } from "./components/AggregateStrip";
 import { CityCard } from "./components/CityCard";
 import { CommandBar } from "./components/CommandBar";
 
-type Mode = "live" | "fixtures";
 const REFRESH_MS = 60_000;
 
 function groupByLocation(results: ScenarioResult[]): [string, ScenarioResult[]][] {
@@ -25,16 +19,13 @@ function groupByLocation(results: ScenarioResult[]): [string, ScenarioResult[]][
 }
 
 export default function App() {
-  const [mode, setMode] = useState<Mode>("live");
-  const [files, setFiles] = useState<string[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
   const [threshold, setThreshold] = useState(0.05);
   const [output, setOutput] = useState<AnalysisOutput | null>(null);
   const [offline, setOffline] = useState(false);
   const [inputError, setInputError] = useState<string | null>(null);
   const [upstreamError, setUpstreamError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const entered = useRef(false);
 
   const runLive = useCallback(async (th: number) => {
     setBusy(true);
@@ -52,42 +43,26 @@ export default function App() {
     }
   }, []);
 
-  const runFixture = useCallback(async (file: string, th: number) => {
-    setBusy(true);
-    setInputError(null);
-    setUpstreamError(null);
-    try {
-      setOutput(await analyze(file, th));
-      setOffline(false);
-    } catch (e) {
-      if (e instanceof InputError) setInputError(e.message);
-      else setOffline(true);
-    } finally {
-      setBusy(false);
-    }
-  }, []);
+  useEffect(() => {
+    void runLive(threshold);
+    const timer = setInterval(() => void runLive(threshold), REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [threshold, runLive]);
 
   useEffect(() => {
-    if (timer.current !== null) clearInterval(timer.current);
-    timer.current = null;
-    if (mode === "live") {
-      void runLive(threshold);
-      timer.current = setInterval(() => void runLive(threshold), REFRESH_MS);
-      return () => {
-        if (timer.current !== null) clearInterval(timer.current);
-      };
-    }
-    getScenarioFiles()
-      .then((fs) => {
-        setFiles(fs);
-        setSelected((cur) => cur ?? fs[0] ?? null);
-      })
-      .catch(() => setOffline(true));
-  }, [mode, threshold, runLive]);
-
-  useEffect(() => {
-    if (mode === "fixtures" && selected !== null) void runFixture(selected, threshold);
-  }, [mode, selected, threshold, runFixture]);
+    if (output === null || entered.current) return;
+    entered.current = true;
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? true;
+    if (reduce) return;
+    gsap.from("[data-testid='city-group']", {
+      y: 14,
+      autoAlpha: 0,
+      duration: 0.5,
+      ease: "power2.out",
+      stagger: 0.04,
+      clearProps: "opacity,visibility,transform",
+    });
+  }, [output]);
 
   if (offline && output === null) {
     return (
@@ -106,19 +81,10 @@ export default function App() {
   return (
     <main className="min-h-screen">
       <CommandBar
-        mode={mode}
-        onMode={setMode}
-        updatedAt={mode === "live" ? (output?.live?.fetched_at ?? null) : null}
-        files={files}
-        selected={selected}
-        onSelect={setSelected}
+        updatedAt={output?.live?.fetched_at ?? null}
         threshold={threshold}
         onThreshold={setThreshold}
-        onAnalyze={() =>
-          mode === "live"
-            ? void runLive(threshold)
-            : selected !== null && void runFixture(selected, threshold)
-        }
+        onRefresh={() => void runLive(threshold)}
         busy={busy}
       />
       {upstreamError !== null && (
@@ -148,10 +114,7 @@ export default function App() {
       )}
       {output !== null && (
         <div className={`transition-opacity ${busy ? "opacity-40" : ""}`}>
-          <AggregateStrip
-            aggregate={output.aggregate}
-            modelGrades={mode === "live" ? (output.model_grades ?? null) : undefined}
-          />
+          <AggregateStrip modelGrades={output.model_grades ?? null} />
           <div className="grid grid-cols-1 gap-4 px-6 py-5 md:grid-cols-2 xl:grid-cols-3">
             {groups.map(([location, results]) => (
               <section key={location} data-testid="city-group">

@@ -1,77 +1,51 @@
+import { useEffect, useRef, useState } from "react";
+import gsap from "gsap";
+import { HelpPanel } from "./HelpPanel";
+
 interface CommandBarProps {
-  mode: "live" | "fixtures";
-  onMode: (m: "live" | "fixtures") => void;
   updatedAt: string | null;
-  files: string[];
-  selected: string | null;
-  onSelect: (f: string) => void;
   threshold: number;
   onThreshold: (t: number) => void;
-  onAnalyze: () => void;
+  onRefresh: () => void;
   busy: boolean;
 }
 
 export function CommandBar({
-  mode,
-  onMode,
   updatedAt,
-  files,
-  selected,
-  onSelect,
   threshold,
   onThreshold,
-  onAnalyze,
+  onRefresh,
   busy,
 }: CommandBarProps) {
+  const [helpOpen, setHelpOpen] = useState(false);
+  const dotRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? true;
+    if (reduce || dotRef.current === null) return;
+    const pulse = gsap.to(dotRef.current, {
+      autoAlpha: 0.2,
+      duration: 0.8,
+      repeat: -1,
+      yoyo: true,
+      ease: "sine.inOut",
+    });
+    return () => {
+      pulse.kill();
+    };
+  }, []);
   const step = (d: number) =>
     onThreshold(Math.min(1, Math.max(0, Math.round((threshold + d) * 100) / 100)));
   return (
     <header className="flex items-center gap-6 border-b border-hairline px-6 py-3">
       <span className="text-sm font-bold tracking-[0.35em]">EDGECAST</span>
-      <nav className="flex gap-1" aria-label="mode">
-        {(["live", "fixtures"] as const).map((m) => (
-          <button
-            key={m}
-            onClick={() => onMode(m)}
-            className={`border px-2 py-1 text-xs tracking-widest ${
-              m === mode ? "border-text-2 text-text-1" : "border-hairline text-text-3"
-            }`}
-          >
-            {m.toUpperCase()}
-          </button>
-        ))}
-      </nav>
-      {mode === "fixtures" && (
-      <nav className="flex gap-1" aria-label="scenario file">
-        {files.length <= 4 ? (
-          files.map((f) => (
-            <button
-              key={f}
-              onClick={() => onSelect(f)}
-              className={`border px-2 py-1 text-xs tracking-wider ${
-                f === selected
-                  ? "border-text-2 text-text-1"
-                  : "border-hairline text-text-3"
-              }`}
-            >
-              {f}
-            </button>
-          ))
-        ) : (
-          <select
-            value={selected ?? ""}
-            onChange={(e) => onSelect(e.target.value)}
-            className="border border-hairline bg-ink px-2 py-1 text-xs"
-          >
-            {files.map((f) => (
-              <option key={f} value={f}>
-                {f}
-              </option>
-            ))}
-          </select>
-        )}
-      </nav>
-      )}
+      <span className="flex items-center gap-2 text-xs tracking-[0.2em] text-down">
+        <span
+          ref={dotRef}
+          data-testid="live-dot"
+          className="inline-block h-1.5 w-1.5 rounded-full bg-down"
+        />
+        LIVE
+      </span>
       <div className="ml-auto flex items-center gap-4">
         {updatedAt !== null && (
           <span className="text-xs text-text-3 tabular-nums">
@@ -101,12 +75,21 @@ export function CommandBar({
           </button>
         </div>
         <button
-          onClick={onAnalyze}
+          onClick={onRefresh}
           className="border border-text-2 px-3 py-1 text-xs tracking-widest"
         >
-          ANALYZE ▸
+          REFRESH ▸
+        </button>
+        <button
+          onClick={() => setHelpOpen((o) => !o)}
+          aria-label="help"
+          aria-expanded={helpOpen}
+          className="border border-hairline px-2 py-1 text-xs text-text-2"
+        >
+          ?
         </button>
       </div>
+      {helpOpen && <HelpPanel onClose={() => setHelpOpen(false)} />}
     </header>
   );
 }

@@ -7,11 +7,11 @@
 
 @theme {
   --color-ink: #0a0e12;
-  --color-panel: #0e141b;
+  --color-panel: #111923;
   --color-text-1: #e6edf3;
-  --color-text-2: #8b98a5;
-  --color-text-3: #4d5866;
-  --color-hairline: rgba(255, 255, 255, 0.12);
+  --color-text-2: #a3b0bd;
+  --color-text-3: #74839a;
+  --color-hairline: rgba(255, 255, 255, 0.14);
   --color-up: #2ecc71;
   --color-down: #ff4d4d;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;

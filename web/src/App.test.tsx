@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import App from "./App";
 
@@ -81,13 +81,7 @@ const LIVE_OUTPUT = {
 function stubLive(liveBody: unknown, status = 200) {
   const fetchMock = vi.fn(async (url: string) => {
     if (url.startsWith("/api/live")) return fakeResponse(status, liveBody);
-    if (url === "/api/scenario-files")
-      return fakeResponse(200, { files: ["sample.json"] });
-    return fakeResponse(200, {
-      ...LIVE_OUTPUT,
-      live: undefined,
-      results: [makeResult("f", "NYC")],
-    });
+    return fakeResponse(404, {});
   });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
@@ -104,7 +98,7 @@ it("boots in live mode, renders one CityCard per city, shows updated stamp", asy
   expect(screen.getByText(/UPDATED/)).toBeInTheDocument();
   expect(screen.getByText(/CONSENSUS 91\.8°/)).toBeInTheDocument();
   expect(screen.getByTestId("verdict")).toHaveTextContent(
-    "CONSENSUS CLOSEST · DAY-AHEAD · LAST 30 DAYS",
+    "CONSENSUS CLOSEST · DAY-FORWARD · LAST 30 DAYS",
   );
 });
 
@@ -130,14 +124,12 @@ it("shows unreachable strip on 502", async () => {
   );
 });
 
-it("switching to FIXTURES fetches files and analyzes", async () => {
+it("has no fixtures mode toggle", async () => {
   stubLive(LIVE_OUTPUT);
   render(<App />);
   await screen.findAllByTestId("city-group");
-  fireEvent.click(screen.getByRole("button", { name: "FIXTURES" }));
-  expect(
-    await screen.findByRole("button", { name: "sample.json" }),
-  ).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "FIXTURES" })).toBeNull();
+  expect(screen.getByRole("button", { name: /REFRESH/ })).toBeInTheDocument();
 });
 
 it("shows SIGNAL LOST when the server itself is unreachable", async () => {

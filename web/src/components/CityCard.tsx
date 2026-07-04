@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+import gsap from "gsap";
 import type { CityInfo, KalshiMismatch, ModelGradeStats, ScenarioResult } from "../types";
 import { MODEL_NAMES, MODEL_ORDER } from "../types";
 
@@ -110,6 +112,19 @@ interface CityCardProps {
 }
 
 export function CityCard({ location, cityInfo, results, modelHighs, grades, mismatches }: CityCardProps) {
+  const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = panelRef.current;
+    if (el === null) return;
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? true;
+    gsap.to(el, {
+      height: open ? "auto" : 0,
+      duration: reduce ? 0 : 0.35,
+      ease: "power2.inOut",
+      overwrite: true,
+    });
+  }, [open]);
   const sorted = results.slice().sort((a, b) => sortKey(a) - sortKey(b));
   const eventDate = sorted[0]?.market.event_date;
   const consensus = modelHighs?.consensus ?? null;
@@ -170,21 +185,34 @@ export function CityCard({ location, cityInfo, results, modelHighs, grades, mism
         ))}
       </ul>
       <footer className="pt-2 text-xs text-text-2" data-testid="verification-footer">
-        {gradeModels.length > 0 ? (
-          gradeModels.map((m) => (
-            <p key={m} className={m === "consensus" ? "" : "text-text-3"}>
-              {gradeLine(m, grades![m])}
-            </p>
-          ))
-        ) : (
-          <p className="text-text-3">MODELS UNGRADED — run: uv run edgecast backfill</p>
-        )}
         {mismatches.map((m) => (
           <p key={m.market_id} className="text-down" data-testid="mismatch-warning">
             ⚠︎ KALSHI SETTLED {m.kalshi_result.toUpperCase()} — EDGECAST COMPUTES{" "}
             {m.edgecast_outcome === 1 ? "YES" : "NO"} ({m.market_id})
           </p>
         ))}
+        <button
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          data-testid="skill-toggle"
+          className="flex w-full items-center justify-between pt-1 text-[10px] tracking-[0.2em] text-text-3"
+        >
+          <span>MODEL SKILL · 30D</span>
+          <span>{open ? "▾" : "▸"}</span>
+        </button>
+        <div ref={panelRef} style={{ height: 0, overflow: "hidden" }}>
+          <div className="pt-1.5">
+            {gradeModels.length > 0 ? (
+              gradeModels.map((m) => (
+                <p key={m} className={m === "consensus" ? "" : "text-text-3"}>
+                  {gradeLine(m, grades![m])}
+                </p>
+              ))
+            ) : (
+              <p className="text-text-3">MODELS UNGRADED — run: uv run edgecast backfill</p>
+            )}
+          </div>
+        </div>
       </footer>
     </article>
   );
