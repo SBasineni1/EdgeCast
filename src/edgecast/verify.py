@@ -1,7 +1,10 @@
 """Verifier: settle and score past Kalshi markets against official observations."""
 
+import time
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
+
+import httpx
 
 from edgecast.live.acis import AcisUnavailable, fetch_observed_highs
 from edgecast.live.kalshi import (
@@ -15,6 +18,20 @@ from edgecast.live.stations import STATIONS
 from edgecast.pipeline import analyze
 from edgecast.store import Store, VerificationRow
 from edgecast.types import EnsembleForecast, Observation, Scenario
+
+RETRY_DELAYS = (2.0, 8.0)  # open-meteo rate-limits bulk verification; back off on 429
+PACE_SECONDS = 0.5  # small gap between cities to stay under the rate limit
+
+
+def _fetch_ensemble_retrying(lat, lon, dates, tz, client, model):
+    for delay in (*RETRY_DELAYS, None):
+        try:
+            return fetch_ensemble_past_highs(lat, lon, dates, tz, client, model=model)
+        except httpx.HTTPStatusError as e:
+            if delay is None or e.response.status_code != 429:
+                raise
+            time.sleep(delay)
+    raise AssertionError("unreachable")
 
 
 @dataclass
@@ -34,6 +51,7 @@ def verify_days(
 ) -> VerifyReport:
     report = VerifyReport(dates_attempted=list(dates))
     covered = store.covered(model, list(dates))
+    fetched_any = False
     now = datetime.now(timezone.utc).isoformat()
 
     for series, st in STATIONS.items():
@@ -51,8 +69,11 @@ def verify_days(
             continue
 
         try:
-            hindcasts = fetch_ensemble_past_highs(
-                st.lat, st.lon, todo, st.tz, meteo_client, model=model
+            if fetched_any:
+                time.sleep(PACE_SECONDS)
+            fetched_any = True
+            hindcasts = _fetch_ensemble_retrying(
+                st.lat, st.lon, todo, st.tz, meteo_client, model
             )
         except Exception as e:  # noqa: BLE001 - upstream failure isolates this city
             report.failures.extend(

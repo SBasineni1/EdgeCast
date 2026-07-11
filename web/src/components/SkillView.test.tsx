@@ -1,7 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { expect, it } from "vitest";
 import type { ModelGrades } from "../types";
-import { AggregateStrip } from "./AggregateStrip";
+import { SkillView } from "./SkillView";
+
+const cities = { NYC: { name: "New York", station: "Central Park", series: "KXHIGHNY" } };
 
 const modelGrades: ModelGrades = {
   window_days: 30,
@@ -12,32 +14,38 @@ const modelGrades: ModelGrades = {
     gfs_hrrr: { n_days: 28, mae: 2.2, bias: 0.1, bucket_hit_rate: 0.26 },
     gfs_global: { n_days: 28, mae: 2.2, bias: 0.8, bucket_hit_rate: 0.33 },
   },
-  by_city: {},
+  by_city: {
+    NYC: { consensus: { n_days: 28, mae: 1.4, bias: 0.2, bucket_hit_rate: 0.45 } },
+  },
 };
 
-it("renders per-model grades with closest-model verdict", () => {
-  render(<AggregateStrip modelGrades={modelGrades} />);
+it("renders per-model grades with closest-model verdict and by-city lines", () => {
+  render(<SkillView modelGrades={modelGrades} cities={cities} />);
   expect(screen.getByTestId("verdict")).toHaveTextContent(
     "CONSENSUS CLOSEST · DAY-FORWARD · LAST 30 DAYS",
   );
   expect(screen.getByText("1.5°")).toBeInTheDocument();
   expect(screen.getByText("CONSENSUS RIGHT BUCKET")).toBeInTheDocument();
   expect(screen.getByText("41%")).toBeInTheDocument();
+  const city = screen.getByTestId("skill-city");
+  expect(city).toHaveTextContent("New York");
+  expect(city).toHaveTextContent("CONSENSUS · OFF BY 1.4°F · RIGHT BUCKET 45% · RUNS +0.2° WARM");
 });
 
 it("breaks MAE ties by bucket hit rate", () => {
   const tied: ModelGrades = {
     ...modelGrades,
+    by_city: {},
     overall: {
       gfs_hrrr: { n_days: 28, mae: 2.2, bias: 0.1, bucket_hit_rate: 0.4 },
       gfs_global: { n_days: 28, mae: 2.2, bias: 0.8, bucket_hit_rate: 0.3 },
     },
   };
-  render(<AggregateStrip modelGrades={tied} />);
+  render(<SkillView modelGrades={tied} cities={{}} />);
   expect(screen.getByTestId("verdict")).toHaveTextContent("HRRR CLOSEST");
 });
 
 it("null model grades show awaiting-backfill state", () => {
-  render(<AggregateStrip modelGrades={null} />);
+  render(<SkillView modelGrades={null} cities={{}} />);
   expect(screen.getByTestId("verdict")).toHaveTextContent("AWAITING MODEL GRADES");
 });

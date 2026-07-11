@@ -72,14 +72,14 @@ export function HelpPanel({ onClose }: HelpPanelProps) {
       role="dialog"
       aria-label="help"
       data-testid="help-panel"
-      className="fixed right-4 top-14 z-50 max-h-[80vh] w-[26rem] max-w-[calc(100vw-2rem)] overflow-y-auto border border-hairline bg-panel p-4"
+      className="fixed left-60 top-14 z-50 max-h-[80vh] w-[26rem] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-hairline bg-panel-2 p-5"
     >
       <div className="flex items-baseline justify-between pb-3">
         <span className="text-xs font-bold tracking-[0.25em]">READING THIS DASHBOARD</span>
         <button
           onClick={onClose}
           aria-label="close help"
-          className="border border-hairline px-1.5 text-xs text-text-2"
+          className="rounded-full border border-hairline px-2 text-xs text-text-2"
         >
           ✕
         </button>

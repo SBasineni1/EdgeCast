@@ -1,5 +1,6 @@
 from datetime import date, datetime, timezone
 
+import httpx
 import pytest
 
 from edgecast.store import Store
@@ -107,3 +108,68 @@ def test_verify_isolates_stage_failures(patched, tmp_path, monkeypatch):
     assert report.failures == [
         {"city": "AUS", "date": "2026-07-02", "stage": "acis", "reason": "boom"}
     ]
+
+
+def _http_429():
+    req = httpx.Request("GET", "https://ensemble-api.open-meteo.com/v1/ensemble")
+    return httpx.HTTPStatusError(
+        "429 Too Many Requests", request=req, response=httpx.Response(429, request=req)
+    )
+
+
+def test_verify_retries_ensemble_on_429(patched, tmp_path, monkeypatch):
+    import edgecast.verify as v
+
+    calls = {"n": 0}
+
+    def flaky(lat, lon, dates, tz, c, model="gfs_seamless"):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise _http_429()
+        return {"2026-07-02": tuple([96.2] * 20 + [95.0] * 10)}
+
+    monkeypatch.setattr(v, "fetch_ensemble_past_highs", flaky)
+    sleeps: list[float] = []
+    monkeypatch.setattr(v.time, "sleep", lambda s: sleeps.append(s))
+    store = Store(tmp_path / "v.db")
+    report = verify_days(["2026-07-02"], store, None, None)
+    assert calls["n"] == 3
+    assert sleeps == [2.0, 8.0]
+    assert report.n_markets_verified == 2
+    assert report.failures == []
+
+
+def test_verify_gives_up_after_persistent_429(patched, tmp_path, monkeypatch):
+    import edgecast.verify as v
+
+    monkeypatch.setattr(
+        v, "fetch_ensemble_past_highs",
+        lambda *a, **k: (_ for _ in ()).throw(_http_429()),
+    )
+    monkeypatch.setattr(v.time, "sleep", lambda s: None)
+    store = Store(tmp_path / "v.db")
+    report = verify_days(["2026-07-02"], store, None, None)
+    assert report.n_markets_verified == 0
+    assert len(report.failures) == 1
+    assert report.failures[0]["stage"] == "open-meteo"
+    assert "429" in report.failures[0]["reason"]
+
+
+def test_verify_does_not_retry_non_429(patched, tmp_path, monkeypatch):
+    import edgecast.verify as v
+
+    req = httpx.Request("GET", "https://ensemble-api.open-meteo.com/v1/ensemble")
+    err = httpx.HTTPStatusError(
+        "500", request=req, response=httpx.Response(500, request=req)
+    )
+    calls = {"n": 0}
+
+    def failing(*a, **k):
+        calls["n"] += 1
+        raise err
+
+    monkeypatch.setattr(v, "fetch_ensemble_past_highs", failing)
+    store = Store(tmp_path / "v.db")
+    report = verify_days(["2026-07-02"], store, None, None)
+    assert calls["n"] == 1
+    assert report.failures[0]["stage"] == "open-meteo"

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import App from "./App";
 
@@ -8,7 +8,7 @@ function fakeResponse(status: number, body: unknown) {
   return { ok: status >= 200 && status < 300, status, json: async () => body };
 }
 
-function makeResult(id: string, location: string) {
+function makeResult(id: string, location: string, threshold = 90) {
   return {
     scenario_id: id,
     market: {
@@ -16,7 +16,7 @@ function makeResult(id: string, location: string) {
       location,
       variable: "high_temp_f",
       comparator: ">=",
-      threshold: 90,
+      threshold,
       event_date: "2026-07-03",
     },
     market_prob: 0.72,
@@ -31,7 +31,7 @@ function makeResult(id: string, location: string) {
 const LIVE_OUTPUT = {
   schema_version: "1.2",
   generated_at: "2026-07-03T12:04:31+00:00",
-  results: [makeResult("a", "NYC"), makeResult("b", "CHI"), makeResult("c", "NYC")],
+  results: [makeResult("a", "NYC", 90), makeResult("b", "CHI", 88), makeResult("c", "NYC", 92)],
   aggregate: {
     n_scenarios: 3,
     n_settled: 0,
@@ -87,19 +87,58 @@ function stubLive(liveBody: unknown, status = 200) {
   return fetchMock;
 }
 
-it("boots in live mode, renders one CityCard per city, shows updated stamp", async () => {
+it("boots with the first city selected: hero, rail, ladder", async () => {
   stubLive(LIVE_OUTPUT);
   render(<App />);
-  const footers = await screen.findAllByTestId("verification-footer");
-  expect(footers).toHaveLength(2);
-  expect(screen.getAllByTestId("ladder-row")).toHaveLength(3);
-  expect(screen.getByText(/CHICAGO/)).toBeInTheDocument();
+  const railCities = await screen.findAllByTestId("rail-city");
+  expect(railCities).toHaveLength(2);
+  // CHI sorts first -> selected by default
+  expect(railCities[0]).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByTestId("hero-temp")).toHaveTextContent("88.5°");
+  expect(screen.getByRole("heading", { name: "Chicago" })).toBeInTheDocument();
   expect(screen.getByText(/MIDWAY/)).toBeInTheDocument();
+  expect(screen.getAllByTestId("ladder-row")).toHaveLength(1);
   expect(screen.getByText(/UPDATED/)).toBeInTheDocument();
-  expect(screen.getByText(/CONSENSUS 91\.8°/)).toBeInTheDocument();
+});
+
+it("switches city from the rail", async () => {
+  stubLive(LIVE_OUTPUT);
+  render(<App />);
+  const railCities = await screen.findAllByTestId("rail-city");
+  fireEvent.click(railCities[1]); // New York
+  expect(screen.getByTestId("hero-temp")).toHaveTextContent("91.8°");
+  expect(screen.getAllByTestId("ladder-row")).toHaveLength(2);
+  expect(screen.getByTestId("ladder-chart")).toBeInTheDocument(); // 2 buckets -> chart renders
+});
+
+it("falls back to the first city when the selected one disappears", async () => {
+  stubLive(LIVE_OUTPUT);
+  render(<App />);
+  const railCities = await screen.findAllByTestId("rail-city");
+  fireEvent.click(railCities[1]); // select NYC
+  expect(screen.getByTestId("hero-temp")).toHaveTextContent("91.8°");
+  // next fetch returns CHI only
+  stubLive({
+    ...LIVE_OUTPUT,
+    results: [makeResult("b", "CHI", 88)],
+  });
+  fireEvent.click(screen.getByRole("button", { name: /REFRESH/ }));
+  expect(await screen.findByRole("heading", { name: "Chicago" })).toBeInTheDocument();
+  expect(screen.getByTestId("hero-temp")).toHaveTextContent("88.5°");
+});
+
+it("switches views from the sidebar", async () => {
+  stubLive(LIVE_OUTPUT);
+  render(<App />);
+  await screen.findAllByTestId("rail-city");
+  fireEvent.click(screen.getByRole("button", { name: /Verification/ }));
+  expect(screen.getByTestId("no-mismatches")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /Model Skill/ }));
   expect(screen.getByTestId("verdict")).toHaveTextContent(
     "CONSENSUS CLOSEST · DAY-FORWARD · LAST 30 DAYS",
   );
+  fireEvent.click(screen.getByRole("button", { name: /Dashboard/ }));
+  expect(screen.getByTestId("hero-temp")).toBeInTheDocument();
 });
 
 it("shows partial upstream strip", async () => {
@@ -122,14 +161,6 @@ it("shows unreachable strip on 502", async () => {
   expect(await screen.findByTestId("upstream-strip")).toHaveTextContent(
     "UPSTREAM UNREACHABLE",
   );
-});
-
-it("has no fixtures mode toggle", async () => {
-  stubLive(LIVE_OUTPUT);
-  render(<App />);
-  await screen.findAllByTestId("city-group");
-  expect(screen.queryByRole("button", { name: "FIXTURES" })).toBeNull();
-  expect(screen.getByRole("button", { name: /REFRESH/ })).toBeInTheDocument();
 });
 
 it("shows SIGNAL LOST when the server itself is unreachable", async () => {
