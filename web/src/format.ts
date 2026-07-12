@@ -2,8 +2,8 @@ import type { MarketMeta, ModelGrades, ModelGradeStats, ScenarioResult } from ".
 import { MODEL_NAMES } from "./types";
 
 const MONTHS = [
-  "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
-  "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
 export function formatDate(isoDate: string): string {

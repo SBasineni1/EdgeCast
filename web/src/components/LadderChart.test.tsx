@@ -36,9 +36,9 @@ it("renders two lines, pills with end values, and bucket labels", () => {
   expect(screen.getByTestId("ladder-chart")).toBeInTheDocument();
   expect(screen.getByTestId("market-line")).toBeInTheDocument();
   expect(screen.getByTestId("model-line")).toBeInTheDocument();
-  // pills show the last (highest) bucket's values
-  expect(screen.getByText("MARKET 30%")).toBeInTheDocument();
-  expect(screen.getByText("MODEL 23%")).toBeInTheDocument();
+  // legend names both series
+  expect(screen.getByText("Market")).toBeInTheDocument();
+  expect(screen.getByText("Model")).toBeInTheDocument();
   // compact x-axis labels
   expect(screen.getByText("≤93")).toBeInTheDocument();
   expect(screen.getByText("96–97")).toBeInTheDocument();
@@ -66,8 +66,8 @@ it("shows a hover tooltip with the bucket's market and model percentages", () =>
   expect(zones).toHaveLength(3);
   fireEvent.mouseOver(zones[1]);
   expect(screen.getByTestId("chart-hover-tip")).toBeInTheDocument();
-  expect(screen.getByText("MARKET 60%")).toBeInTheDocument();
-  expect(screen.getByText("MODEL 72%")).toBeInTheDocument();
+  expect(screen.getByText("Market 60%")).toBeInTheDocument();
+  expect(screen.getByText("Model 72%")).toBeInTheDocument();
   expect(screen.getByTestId("chart-hover-band")).toBeInTheDocument();
 });
 

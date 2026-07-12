@@ -4,9 +4,9 @@ import { closestModel, gradeLine } from "../format";
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-panel p-4">
-      <div className="text-[10px] tracking-[0.25em] text-text-3">{label}</div>
-      <div className="pt-1 text-3xl font-medium tabular-nums">{value}</div>
+    <div className="rounded-2xl border border-hairline bg-panel p-4 shadow-sm">
+      <div className="text-xs font-medium text-text-3">{label}</div>
+      <div className="pt-1 font-display text-3xl font-medium tabular-nums">{value}</div>
     </div>
   );
 }
@@ -19,7 +19,7 @@ interface SkillViewProps {
 export function SkillView({ modelGrades, cities }: SkillViewProps) {
   if (modelGrades == null) {
     return (
-      <p className="rounded-2xl bg-panel p-5 text-sm text-text-3" data-testid="verdict">
+      <p className="rounded-2xl border border-hairline bg-panel p-5 shadow-sm text-sm text-text-3" data-testid="verdict">
         AWAITING MODEL GRADES — run: uv run edgecast backfill
       </p>
     );
@@ -30,7 +30,7 @@ export function SkillView({ modelGrades, cities }: SkillViewProps) {
   const verdict = closest === null ? "MODELS TIED" : `${MODEL_NAMES[closest] ?? closest} CLOSEST`;
   return (
     <div className="flex flex-col gap-6">
-      <p className="text-lg font-medium" data-testid="verdict">
+      <p className="font-display text-lg font-medium" data-testid="verdict">
         {verdict} · DAY-FORWARD · LAST {modelGrades.window_days} DAYS
       </p>
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
@@ -38,12 +38,12 @@ export function SkillView({ modelGrades, cities }: SkillViewProps) {
           <Stat key={m} label={`${MODEL_NAMES[m] ?? m} MAE`} value={`${modelGrades.overall[m].mae.toFixed(1)}°`} />
         ))}
         {consensusHit !== null && (
-          <Stat label="CONSENSUS RIGHT BUCKET" value={`${Math.round(consensusHit * 100)}%`} />
+          <Stat label="Consensus right bucket" value={`${Math.round(consensusHit * 100)}%`} />
         )}
       </div>
       {Object.keys(modelGrades.by_city).length > 0 && (
-        <section className="rounded-2xl bg-panel p-5">
-          <p className="pb-3 text-[10px] tracking-[0.25em] text-text-3">BY CITY</p>
+        <section className="rounded-2xl border border-hairline bg-panel p-5 shadow-sm">
+          <p className="pb-3 text-xs font-medium text-text-3">By city</p>
           <div className="flex flex-col gap-4">
             {Object.entries(modelGrades.by_city)
               .sort(([a], [b]) => a.localeCompare(b))

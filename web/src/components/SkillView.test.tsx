@@ -25,7 +25,7 @@ it("renders per-model grades with closest-model verdict and by-city lines", () =
     "CONSENSUS CLOSEST · DAY-FORWARD · LAST 30 DAYS",
   );
   expect(screen.getByText("1.5°")).toBeInTheDocument();
-  expect(screen.getByText("CONSENSUS RIGHT BUCKET")).toBeInTheDocument();
+  expect(screen.getByText("Consensus right bucket")).toBeInTheDocument();
   expect(screen.getByText("41%")).toBeInTheDocument();
   const city = screen.getByTestId("skill-city");
   expect(city).toHaveTextContent("New York");

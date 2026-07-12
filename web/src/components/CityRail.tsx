@@ -39,9 +39,9 @@ export function CityRail({ groups, cities, modelHighs, selected, onSelect }: Cit
     .sort((a, b) => Math.abs(b.r.edge.value) - Math.abs(a.r.edge.value))
     .slice(0, 6);
   return (
-    <aside className="sticky top-0 flex h-screen w-72 shrink-0 flex-col gap-8 overflow-y-auto px-5 py-7">
+    <aside className="sticky top-0 flex h-screen w-72 shrink-0 flex-col gap-8 overflow-y-auto border-l border-hairline px-5 py-7">
       <section>
-        <p className="pb-3 text-[10px] tracking-[0.3em] text-text-3">CITIES</p>
+        <p className="pb-3 text-xs font-medium text-text-3">Cities</p>
         <ul className="flex flex-col gap-2">
           {groups.map(([loc, results]) => {
             const consensus = modelHighs?.[loc]?.consensus ?? null;
@@ -53,8 +53,8 @@ export function CityRail({ groups, cities, modelHighs, selected, onSelect }: Cit
                   onClick={() => onSelect(loc)}
                   aria-pressed={active}
                   data-testid="rail-city"
-                  className={`flex w-full items-center justify-between gap-2 rounded-2xl p-4 text-left transition-colors duration-150 ${
-                    active ? "bg-panel-2 ring-1 ring-lime/40" : "bg-panel hover:bg-panel-2"
+                  className={`flex w-full items-center justify-between gap-2 rounded-2xl border p-4 text-left shadow-sm transition-colors duration-150 ${
+                    active ? "border-lime bg-panel ring-1 ring-lime/30" : "border-hairline bg-panel hover:bg-panel-2"
                   }`}
                 >
                   <span className="min-w-0">
@@ -62,7 +62,7 @@ export function CityRail({ groups, cities, modelHighs, selected, onSelect }: Cit
                     <span className="block truncate text-[11px] text-text-3">{cities[loc]?.station ?? ""}</span>
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-1">
-                    <span className="text-lg font-medium tabular-nums">
+                    <span className="font-display text-lg font-medium tabular-nums">
                       {consensus !== null ? `${consensus.toFixed(1)}°` : "—"}
                     </span>
                     {big !== null ? <EdgeBadge r={big} /> : <span className="text-[11px] text-text-3">—</span>}
@@ -75,7 +75,7 @@ export function CityRail({ groups, cities, modelHighs, selected, onSelect }: Cit
       </section>
       {topEdges.length > 0 && (
         <section>
-          <p className="pb-3 text-[10px] tracking-[0.3em] text-text-3">TOP EDGES</p>
+          <p className="pb-3 text-xs font-medium text-text-3">Top edges</p>
           <ul className="flex flex-col">
             {topEdges.map(({ loc, r }) => (
               <li key={r.scenario_id} data-anim="rail-item">

@@ -36,8 +36,8 @@ it("help panel opens with FAQ content and closes", () => {
   expect(screen.queryByTestId("help-panel")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "help" }));
   const panel = screen.getByTestId("help-panel");
-  expect(panel).toHaveTextContent("RIGHT BUCKET");
-  expect(panel).toHaveTextContent("CONSENSUS");
+  expect(panel).toHaveTextContent("Right bucket");
+  expect(panel).toHaveTextContent("Consensus");
   fireEvent.click(screen.getByRole("button", { name: "close help" }));
   expect(screen.queryByTestId("help-panel")).toBeNull();
 });

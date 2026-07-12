@@ -8,7 +8,7 @@ function ProbCell({ value, tone }: { value: number; tone: "gold" | "lime" }) {
   return (
     <div>
       <span className="text-sm tabular-nums">{Math.round(value * 100)}%</span>
-      <div className="mt-1 h-1 rounded-full bg-white/10">
+      <div className="mt-1 h-1 rounded-full bg-panel-2">
         <div
           className={`h-full rounded-full ${tone === "gold" ? "bg-gold" : "bg-lime"}`}
           style={{ width: `${pct}%`, transition: "width 300ms ease-out" }}
@@ -59,12 +59,12 @@ export function LadderTable({ results, consensus, mismatches }: LadderTableProps
   const sorted = results.slice().sort((a, b) => sortKey(a) - sortKey(b));
   const markedId = markedScenarioId(sorted, consensus);
   return (
-    <section className="rounded-2xl bg-panel p-5" data-anim="table" data-testid="ladder-table">
-      <div className={`${GRID} pb-3 text-[10px] tracking-[0.25em] text-text-3`}>
-        <span>RANGE</span>
-        <span>MARKET</span>
-        <span>MODEL</span>
-        <span className="justify-self-end">EDGE</span>
+    <section className="rounded-2xl border border-hairline bg-panel p-5 shadow-sm" data-anim="table" data-testid="ladder-table">
+      <div className={`${GRID} pb-3 text-xs font-medium text-text-3`}>
+        <span>Range</span>
+        <span>Market</span>
+        <span>Model</span>
+        <span className="justify-self-end">Edge</span>
       </div>
       <ul>
         {sorted.map((r) => (

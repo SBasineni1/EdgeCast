@@ -14,7 +14,7 @@ const props = {
 it("renders city name, station, date, and consensus temp", () => {
   render(<CityHero {...props} />);
   expect(screen.getByText("Austin")).toBeInTheDocument();
-  expect(screen.getByText(/BERGSTROM INTL · JUL 04/)).toBeInTheDocument();
+  expect(screen.getByText(/Bergstrom Intl · Jul 04/)).toBeInTheDocument();
   expect(screen.getByTestId("hero-temp")).toHaveTextContent("96.2°");
   expect(screen.getByText(/σ 1\.8°/)).toBeInTheDocument();
 });

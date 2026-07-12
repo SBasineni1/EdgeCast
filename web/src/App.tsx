@@ -104,7 +104,7 @@ export default function App() {
   if (offline && output === null) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-3">
-        <h1 className="text-4xl font-bold tracking-[0.3em]">SIGNAL LOST</h1>
+        <h1 className="font-display text-4xl font-bold">Signal lost</h1>
         <p className="text-sm text-text-3">is the server running? → uv run edgecast serve</p>
       </main>
     );
@@ -132,20 +132,20 @@ export default function App() {
           onRefresh={() => void runLive(threshold)}
         />
         {upstreamError !== null && (
-          <p className="mb-4 rounded-xl bg-panel px-4 py-2 text-xs text-text-2" data-testid="upstream-strip">
-            <span className="font-bold text-text-1">UPSTREAM UNREACHABLE</span> {upstreamError} —
+          <p className="mb-4 rounded-xl border border-hairline bg-panel px-4 py-2 text-xs text-text-2" data-testid="upstream-strip">
+            <span className="font-bold text-down">UPSTREAM UNREACHABLE</span> {upstreamError} —
             retrying in 60s
           </p>
         )}
         {upstreamError === null && (output?.live?.cities_failed.length ?? 0) > 0 && (
-          <p className="mb-4 rounded-xl bg-panel px-4 py-2 text-xs text-text-2" data-testid="upstream-strip">
-            <span className="font-bold text-text-1">UPSTREAM PARTIAL</span> —{" "}
+          <p className="mb-4 rounded-xl border border-hairline bg-panel px-4 py-2 text-xs text-text-2" data-testid="upstream-strip">
+            <span className="font-bold text-down">UPSTREAM PARTIAL</span> —{" "}
             {output!.live!.cities_failed.map((f) => `${f.city} (${f.reason})`).join(" · ")}
           </p>
         )}
         {inputError !== null && (
-          <p className="mb-4 rounded-xl bg-panel px-4 py-2 text-xs text-text-2">
-            <span className="font-bold text-text-1">INPUT ERROR</span> {inputError}
+          <p className="mb-4 rounded-xl border border-hairline bg-panel px-4 py-2 text-xs text-text-2">
+            <span className="font-bold text-down">INPUT ERROR</span> {inputError}
           </p>
         )}
         {output !== null && (
@@ -162,6 +162,7 @@ export default function App() {
                   consensus={consensus}
                   sigma={sigma}
                   modelHighs={highs}
+                  results={selectedResults}
                 />
                 <LadderChart results={selectedResults} consensus={consensus} />
                 <LadderTable results={selectedResults} consensus={consensus} mismatches={mismatches} />

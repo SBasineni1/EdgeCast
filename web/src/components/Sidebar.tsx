@@ -57,13 +57,13 @@ export function Sidebar({ view, onView, threshold, onThreshold }: SidebarProps) 
   const step = (d: number) =>
     onThreshold(Math.min(1, Math.max(0, Math.round((threshold + d) * 100) / 100)));
   return (
-    <aside className="sticky top-0 flex h-screen w-56 shrink-0 flex-col gap-8 overflow-y-auto px-5 py-7">
-      <span className="text-lg tracking-tight" data-anim="sidebar-item">
+    <aside className="sticky top-0 flex h-screen w-56 shrink-0 flex-col gap-8 overflow-y-auto border-r border-hairline bg-panel px-5 py-7">
+      <span className="font-display text-lg tracking-tight" data-anim="sidebar-item">
         <span className="font-bold">Edge</span>Cast<span className="text-lime">.</span>
       </span>
       <nav>
-        <p className="pb-3 text-[10px] tracking-[0.3em] text-text-3" data-anim="sidebar-item">
-          MENU
+        <p className="pb-3 text-xs font-medium text-text-3" data-anim="sidebar-item">
+          Menu
         </p>
         <ul className="flex flex-col gap-1.5">
           {NAV.map(({ id, label, icon }) => (
@@ -83,8 +83,8 @@ export function Sidebar({ view, onView, threshold, onThreshold }: SidebarProps) 
         </ul>
       </nav>
       <div>
-        <p className="pb-3 text-[10px] tracking-[0.3em] text-text-3" data-anim="sidebar-item">
-          OTHER
+        <p className="pb-3 text-xs font-medium text-text-3" data-anim="sidebar-item">
+          Other
         </p>
         <button
           onClick={() => setHelpOpen((o) => !o)}
@@ -97,8 +97,8 @@ export function Sidebar({ view, onView, threshold, onThreshold }: SidebarProps) 
           Help Center
         </button>
       </div>
-      <div className="mt-auto rounded-2xl bg-panel p-4" data-anim="sidebar-item">
-        <p className="pb-2 text-[10px] tracking-[0.3em] text-text-3">FLAG ≥</p>
+      <div className="mt-auto rounded-2xl border border-hairline p-4" data-anim="sidebar-item">
+        <p className="pb-2 text-xs font-medium text-text-3">Flag ≥</p>
         <div className="flex items-center justify-between">
           <button
             aria-label="decrease threshold"

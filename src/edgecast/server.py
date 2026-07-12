@@ -1,6 +1,7 @@
 """Local API server: wraps the pipeline for the dashboard frontend."""
 
 import json
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -21,6 +22,33 @@ from edgecast.store import Store
 from edgecast.verify import verify_days as run_verification
 
 WEB_DIST = Path(__file__).resolve().parents[2] / "web" / "dist"
+
+# The frontend polls /api/live every 60s; without this pause a 429 from
+# open-meteo turns every poll into another 20-city burst and the quota
+# never recovers.
+RATE_LIMIT_COOLDOWN_SECONDS = 900.0
+
+
+def _had_429(failures: list[dict]) -> bool:
+    return any("429" in f.get("reason", "") for f in failures)
+
+
+def _no_data_dates(failures: list[dict]) -> set[str]:
+    """Dates the ensemble archive has no data for — retrying them burns quota forever.
+
+    Only dates at least 3 days old are written off; a recent date can still be
+    a publication lag rather than a hole in the archive.
+    """
+    from datetime import date, timedelta
+
+    cutoff = (date.today() - timedelta(days=3)).isoformat()
+    return {
+        f["date"]
+        for f in failures
+        if f.get("stage") == "open-meteo"
+        and str(f.get("reason", "")).startswith("no ensemble data")
+        and f.get("date", "") <= cutoff
+    }
 
 
 class AnalyzeRequest(BaseModel):
@@ -45,6 +73,8 @@ def create_app(
     app = FastAPI(title="EdgeCast")
     app.state.db_path = str(db_path)
     app.state.verify_days = verify_days
+    app.state.topup_paused_until = 0.0
+    app.state.dead_dates: set[str] = set()
 
     @app.get("/api/scenario-files")
     def scenario_files() -> dict:
@@ -115,11 +145,16 @@ def create_app(
         try:
             store = Store(db_path)
             dates = _window_dates(verify_days)
-            missing = store.dates_missing(model, dates)[:3]
+            missing = [
+                d for d in store.dates_missing(model, dates) if d not in app.state.dead_dates
+            ][:3]
             topup_failures: list[dict] = []
-            if missing:
+            if missing and time.monotonic() >= app.state.topup_paused_until:
                 topup = run_verification(missing, store, kalshi_client, meteo_client, model=model)
                 topup_failures = topup.failures
+                if _had_429(topup_failures):
+                    app.state.topup_paused_until = time.monotonic() + RATE_LIMIT_COOLDOWN_SECONDS
+                app.state.dead_dates.update(_no_data_dates(topup_failures))
             since = min(dates)
             stats = store.window_stats(model, since)
             if stats is None:
@@ -147,8 +182,12 @@ def create_app(
             else:
                 m_dates = _window_dates(verify_days)
                 m_missing = model_store.dates_missing("day_ahead", m_dates)[:3]
-                if m_missing:
-                    grade_days(m_missing, model_store, kalshi_client, meteo_client)
+                if m_missing and time.monotonic() >= app.state.topup_paused_until:
+                    g_report = grade_days(m_missing, model_store, kalshi_client, meteo_client)
+                    if _had_429(g_report.failures):
+                        app.state.topup_paused_until = (
+                            time.monotonic() + RATE_LIMIT_COOLDOWN_SECONDS
+                        )
                 overall = model_store.overall_grades("day_ahead", min(m_dates))
                 if not overall:
                     out["model_grades"] = None

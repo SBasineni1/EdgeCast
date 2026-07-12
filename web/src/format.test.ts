@@ -39,7 +39,7 @@ function result(id: string, m: MarketMeta): ScenarioResult {
 }
 
 it("formats dates as MON DD", () => {
-  expect(formatDate("2026-07-04")).toBe("JUL 04");
+  expect(formatDate("2026-07-04")).toBe("Jul 04");
 });
 
 it("labels ranges long and short", () => {

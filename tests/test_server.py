@@ -334,3 +334,108 @@ def test_live_verification_null_on_store_failure(fixtures_dir, tmp_path, monkeyp
     app = create_app(fixtures_dir, web_dist=tmp_path / "no-dist", db_path=tmp_path / "x.db")
     out = TestClient(app).get("/api/live").json()
     assert out["verification"] is None
+
+
+def test_verification_topup_pauses_after_429(fixtures_dir, tmp_path, monkeypatch):
+    import edgecast.server as server_mod
+
+    from edgecast.grade import GradeReport
+    from edgecast.verify import VerifyReport
+
+    calls = {"n": 0}
+
+    def failing_verification(dates, store, kc, mc, **kwargs):
+        calls["n"] += 1
+        return VerifyReport(
+            dates_attempted=list(dates),
+            failures=[{
+                "city": "NYC", "date": dates[0], "stage": "open-meteo",
+                "reason": "HTTPStatusError: Client error '429 Too Many Requests'",
+            }],
+        )
+
+    monkeypatch.setattr(server_mod, "build_live_scenarios", lambda *a, **k: _fake_live_result())
+    monkeypatch.setattr(server_mod, "run_verification", failing_verification)
+    monkeypatch.setattr(
+        server_mod, "grade_days",
+        lambda dates, ms, kc, mc: GradeReport(dates_attempted=list(dates)),
+    )
+    db = tmp_path / "live.db"
+    Store(db).upsert([seed_row()])
+    app = create_app(fixtures_dir, web_dist=tmp_path / "no-dist", db_path=db)
+    client = TestClient(app)
+
+    first = client.get("/api/live").json()
+    assert calls["n"] == 1
+    assert first["verification"]["verification_failed"]  # 429 surfaced once
+    second = client.get("/api/live").json()
+    assert calls["n"] == 1  # paused: the next poll must not burst the API again
+    assert second["verification"]["verification_failed"] == []
+
+
+def test_verification_topup_keeps_running_on_non_429_failures(fixtures_dir, tmp_path, monkeypatch):
+    import edgecast.server as server_mod
+
+    from edgecast.grade import GradeReport
+    from edgecast.verify import VerifyReport
+
+    calls = {"n": 0}
+
+    def flaky_verification(dates, store, kc, mc, **kwargs):
+        calls["n"] += 1
+        return VerifyReport(
+            dates_attempted=list(dates),
+            failures=[{"city": "NYC", "date": dates[0], "stage": "acis", "reason": "boom"}],
+        )
+
+    monkeypatch.setattr(server_mod, "build_live_scenarios", lambda *a, **k: _fake_live_result())
+    monkeypatch.setattr(server_mod, "run_verification", flaky_verification)
+    monkeypatch.setattr(
+        server_mod, "grade_days",
+        lambda dates, ms, kc, mc: GradeReport(dates_attempted=list(dates)),
+    )
+    db = tmp_path / "live.db"
+    Store(db).upsert([seed_row()])
+    app = create_app(fixtures_dir, web_dist=tmp_path / "no-dist", db_path=db)
+    client = TestClient(app)
+
+    client.get("/api/live")
+    client.get("/api/live")
+    assert calls["n"] == 2  # non-429 failures do not pause top-ups
+
+
+def test_no_data_dates_are_not_retried(fixtures_dir, tmp_path, monkeypatch):
+    import edgecast.server as server_mod
+
+    from edgecast.grade import GradeReport
+    from edgecast.verify import VerifyReport
+
+    seen: list[list[str]] = []
+
+    def no_data_verification(dates, store, kc, mc, **kwargs):
+        seen.append(list(dates))
+        # report the oldest date in the batch as absent from the archive
+        return VerifyReport(
+            dates_attempted=list(dates),
+            failures=[{
+                "city": "NYC", "date": dates[-1], "stage": "open-meteo",
+                "reason": f"no ensemble data for {dates[-1]}",
+            }],
+        )
+
+    monkeypatch.setattr(server_mod, "build_live_scenarios", lambda *a, **k: _fake_live_result())
+    monkeypatch.setattr(server_mod, "run_verification", no_data_verification)
+    monkeypatch.setattr(
+        server_mod, "grade_days",
+        lambda dates, ms, kc, mc: GradeReport(dates_attempted=list(dates)),
+    )
+    db = tmp_path / "live.db"
+    Store(db).upsert([seed_row()])
+    app = create_app(fixtures_dir, web_dist=tmp_path / "no-dist", db_path=db)
+    client = TestClient(app)
+
+    client.get("/api/live")
+    dead = seen[0][-1]  # the date reported as having no archive data
+    client.get("/api/live")
+    assert len(seen) == 2
+    assert dead not in seen[1]  # tombstoned: never re-fetched, no quota burned on it

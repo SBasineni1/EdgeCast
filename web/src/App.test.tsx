@@ -96,9 +96,9 @@ it("boots with the first city selected: hero, rail, ladder", async () => {
   expect(railCities[0]).toHaveAttribute("aria-pressed", "true");
   expect(screen.getByTestId("hero-temp")).toHaveTextContent("88.5°");
   expect(screen.getByRole("heading", { name: "Chicago" })).toBeInTheDocument();
-  expect(screen.getByText(/MIDWAY/)).toBeInTheDocument();
+  expect(screen.getAllByText(/Midway/).length).toBeGreaterThan(0);
   expect(screen.getAllByTestId("ladder-row")).toHaveLength(1);
-  expect(screen.getByText(/UPDATED/)).toBeInTheDocument();
+  expect(screen.getByText(/Updated/)).toBeInTheDocument();
 });
 
 it("switches city from the rail", async () => {
@@ -122,7 +122,7 @@ it("falls back to the first city when the selected one disappears", async () => 
     ...LIVE_OUTPUT,
     results: [makeResult("b", "CHI", 88)],
   });
-  fireEvent.click(screen.getByRole("button", { name: /REFRESH/ }));
+  fireEvent.click(screen.getByRole("button", { name: /Refresh/ }));
   expect(await screen.findByRole("heading", { name: "Chicago" })).toBeInTheDocument();
   expect(screen.getByTestId("hero-temp")).toHaveTextContent("88.5°");
 });
@@ -166,5 +166,5 @@ it("shows unreachable strip on 502", async () => {
 it("shows SIGNAL LOST when the server itself is unreachable", async () => {
   vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
   render(<App />);
-  expect(await screen.findByText("SIGNAL LOST")).toBeInTheDocument();
+  expect(await screen.findByText("Signal lost")).toBeInTheDocument();
 });
