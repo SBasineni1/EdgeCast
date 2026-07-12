@@ -141,6 +141,24 @@ def create_app(
     kalshi_client = httpx.Client()
     meteo_client = httpx.Client()
 
+    @app.get("/api/cron/snapshot")
+    def cron_snapshot() -> dict:
+        """Vercel Cron target: take the 11 AM ET day-ahead snapshot if due."""
+        due = due_event_date()
+        if due is None:
+            return {"captured": 0, "reason": "before 11 AM ET"}
+        store = Store(db_path)
+        if store.snapshot_taken_at(due) is not None:
+            return {"captured": 0, "reason": f"already taken for {due}"}
+        try:
+            model_store: ModelStore | None = ModelStore(db_path)
+        except Exception:  # noqa: BLE001
+            model_store = None
+        live = build_live_scenarios(kalshi_client, meteo_client, model_store)
+        results, _ = analyze(live.scenarios)
+        n = capture_snapshot(store, results, live.model_highs, live.consensus_sigma)
+        return {"captured": n, "event_date": due}
+
     @app.get("/api/live")
     def live_endpoint(edge_threshold: float = DEFAULT_EDGE_THRESHOLD) -> dict:
         if not 0.0 <= edge_threshold <= 1.0:

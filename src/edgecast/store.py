@@ -1,8 +1,9 @@
 """SQLite verification store: settled markets scored per model."""
 
-import sqlite3
 from dataclasses import dataclass, fields
 from pathlib import Path
+
+from edgecast import db
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS verifications (
@@ -163,19 +164,17 @@ def _stats(rows: list[VerificationRow]) -> WindowStats:
 
 class Store:
     def __init__(self, path: str | Path) -> None:
-        self._path = Path(path)
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(self._path)
-        self._conn.executescript(_SCHEMA)
+        self._conn = db.connect(path)
+        db.apply_schema(self._conn, _SCHEMA)
 
     def upsert(self, rows: list[VerificationRow]) -> None:
         placeholders = ", ".join("?" for _ in _COLS)
-        with self._conn:
-            self._conn.executemany(
-                f"INSERT OR REPLACE INTO verifications ({', '.join(_COLS)}) "
-                f"VALUES ({placeholders})",
-                [tuple(getattr(r, c) for c in _COLS) for r in rows],
-            )
+        self._conn.executemany(
+            f"INSERT OR REPLACE INTO verifications ({', '.join(_COLS)}) "
+            f"VALUES ({placeholders})",
+            [tuple(getattr(r, c) for c in _COLS) for r in rows],
+        )
+        self._conn.commit()
 
     def _select(self, where: str, params: tuple) -> list[VerificationRow]:
         cur = self._conn.execute(
@@ -214,12 +213,12 @@ class Store:
 
     def upsert_snapshots(self, rows: list[SnapshotRow]) -> None:
         placeholders = ", ".join("?" for _ in _SNAP_COLS)
-        with self._conn:
-            self._conn.executemany(
-                f"INSERT OR REPLACE INTO snapshots ({', '.join(_SNAP_COLS)}) "
-                f"VALUES ({placeholders})",
-                [tuple(getattr(r, c) for c in _SNAP_COLS) for r in rows],
-            )
+        self._conn.executemany(
+            f"INSERT OR REPLACE INTO snapshots ({', '.join(_SNAP_COLS)}) "
+            f"VALUES ({placeholders})",
+            [tuple(getattr(r, c) for c in _SNAP_COLS) for r in rows],
+        )
+        self._conn.commit()
 
     def snapshot_taken_at(self, event_date: str) -> str | None:
         cur = self._conn.execute(

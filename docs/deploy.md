@@ -1,61 +1,58 @@
-# Deploying EdgeCast
+# Deploying EdgeCast (all-free, no credit card)
 
-Architecture: the static React frontend deploys to **Vercel**; the FastAPI backend runs on
-**Fly.io** with a persistent volume for `edgecast.db`. Vercel rewrites `/api/*` to the Fly
-app, so the browser talks same-origin and no CORS setup is needed. The backend's built-in
-daemon freezes tomorrow's ladder at 11 AM ET regardless of whether anyone has the dashboard
-open.
+Architecture: everything lives on **Vercel** (hobby tier). The static React frontend is
+built from `web/`; the FastAPI backend runs as a Vercel Python function (`api/index.py`)
+answering `/api/*`; storage is **Turso** (hosted SQLite, free tier, GitHub signup — no
+card). Two Vercel Cron jobs (15:00 and 16:00 UTC) hit `/api/cron/snapshot` so the 11 AM ET
+day-ahead snapshot fires whether it's EST or EDT — the endpoint's ET gate makes the
+wrong-hour invocation a no-op, and it's idempotent.
+
+Local development is unchanged: without `TURSO_DATABASE_URL` set, all stores use the
+SQLite file at `data/edgecast.db` exactly as before.
 
 ## One-time setup
 
-### Backend → Fly.io
+### 1. Turso (database)
 
 ```bash
-brew install flyctl          # if not installed
-fly auth login
+brew install tursodatabase/tap/turso
+turso auth signup            # GitHub OAuth, no card
 
-# From the repo root. Keep the generated app name (or pick your own — then update
-# web/vercel.json to match), say NO to Postgres/Redis, NO to deploy-now:
-fly launch --copy-config --no-deploy
+# Create the DB seeded from your local file — this carries over your verification
+# history AND any day-ahead snapshots already taken:
+turso db create edgecast --from-file data/edgecast.db
 
-# Persistent disk for edgecast.db (snapshots + verification history):
-fly volumes create edgecast_data --region iad --size 1
-
-fly deploy
+turso db show edgecast --url          # -> TURSO_DATABASE_URL
+turso db tokens create edgecast       # -> TURSO_AUTH_TOKEN
 ```
 
-Check it: `curl https://<your-app>.fly.dev/api/live | head -c 200`
+### 2. Vercel (frontend + API + cron)
 
-Optionally seed history from your local database (so the hosted app starts with your
-30-day verification record instead of an empty store):
+1. Push the repo to GitHub.
+2. Vercel → Add New Project → import the repo. **Root Directory must be the repo root**
+   (not `web` — the root `vercel.json` handles the frontend build via
+   `cd web && npm run build`). If you already created the project with root `web`,
+   change it under Project Settings → General → Root Directory, or delete and re-import.
+3. Environment Variables (all environments):
+   - `TURSO_DATABASE_URL` — from `turso db show`
+   - `TURSO_AUTH_TOKEN` — from `turso db tokens create`
+4. Deploy.
 
-```bash
-fly ssh sftp shell   # then: put data/edgecast.db /data/edgecast.db
-fly apps restart
-```
+### 3. Verify
 
-### Frontend → Vercel
+- `https://<project>.vercel.app` shows the dashboard.
+- `https://<project>.vercel.app/api/live` returns JSON (first hit is slow — cold start
+  plus the 20-city fetch).
+- `https://<project>.vercel.app/api/cron/snapshot` returns `{"captured": ...}` — safe to
+  hit manually; it refuses duplicates.
 
-1. Update `web/vercel.json` — set the rewrite destination to your Fly app URL.
-2. Push the repo to GitHub.
-3. In Vercel: **Add New Project** → import the repo → set **Root Directory = `web`**
-   (framework auto-detects Vite; build `npm run build`, output `dist`). Deploy.
+## Notes
 
-Or with the CLI:
-
-```bash
-cd web && npx vercel --prod   # first run walks through project setup; pick web as root
-```
-
-## Day-to-day
-
-- `fly deploy` after backend changes; Vercel redeploys on git push.
-- `fly logs` tails the API; the snapshot daemon logs nothing when idle.
-- The 11 AM ET snapshot is automatic (in-server daemon, checked every 5 minutes).
-  Manual capture if ever needed: `fly ssh console -C "edgecast snapshot --db /data/edgecast.db"`.
-
-## Costs / notes
-
-- Fly: one `shared-cpu-1x` 512 MB machine, always-on, ~free-tier / a few $ per month.
-- Vercel hobby tier covers the static frontend.
-- No secrets are involved — Kalshi, Open-Meteo, and ACIS are all public, unauthenticated APIs.
+- **Crons need nothing from you** — Vercel invokes them; check Project → Settings → Cron
+  Jobs to see runs.
+- Serverless caches (live quotes/ensembles TTL, 429 cooldown, dead-date tombstones) are
+  per-warm-instance; they reset on cold starts, which is fine — durable state is in Turso.
+- Free-tier headroom: Turso allows ~1B row reads/month; this app does a few thousand.
+  Vercel hobby function limits fit the 60s `maxDuration` configured in `vercel.json`.
+- `Dockerfile`/`fly.toml` remain in the repo as an alternative path (Fly.io needs a card);
+  they're excluded from Vercel via `.vercelignore`.
