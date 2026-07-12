@@ -32,6 +32,7 @@ export default function App() {
   const [inputError, setInputError] = useState<string | null>(null);
   const [upstreamError, setUpstreamError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [failedPolls, setFailedPolls] = useState(0);
   const entered = useRef(false);
   const mainRef = useRef<HTMLDivElement>(null);
   const prevSelected = useRef<string | null>(null);
@@ -43,10 +44,12 @@ export default function App() {
       setOutput(await analyzeLive(th));
       setUpstreamError(null);
       setOffline(false);
+      setFailedPolls(0);
     } catch (e) {
       if (e instanceof UpstreamError) setUpstreamError(e.message);
       else if (e instanceof InputError) setInputError(e.message);
       else setOffline(true);
+      if (!(e instanceof InputError)) setFailedPolls((n) => n + 1);
     } finally {
       setBusy(false);
     }
@@ -151,7 +154,10 @@ export default function App() {
         {output !== null && (
           <div
             ref={mainRef}
-            className={`flex flex-col gap-6 transition-opacity ${busy ? "opacity-40" : ""}`}
+            data-testid="main-column"
+            className={`flex flex-col gap-6 transition-opacity ${
+              failedPolls >= 2 ? "opacity-40" : ""
+            }`}
           >
             {view === "dashboard" && selected !== null && (
               <>

@@ -44,6 +44,12 @@ CREATE TABLE IF NOT EXISTS snapshots (
   taken_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_snapshots_date ON snapshots(event_date);
+CREATE TABLE IF NOT EXISTS dead_dates (
+  kind TEXT NOT NULL,
+  date TEXT NOT NULL,
+  marked_at TEXT NOT NULL,
+  PRIMARY KEY (kind, date)
+);
 """
 
 
@@ -233,6 +239,23 @@ class Store:
             (since_date,),
         )
         return [SnapshotRow(**dict(zip(_SNAP_COLS, row))) for row in cur.fetchall()]
+
+    def mark_dead(self, kind: str, dates: set[str]) -> None:
+        """Record dates whose upstream data will never appear (archive holes)."""
+        if not dates:
+            return
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc).isoformat()
+        self._conn.executemany(
+            "INSERT OR REPLACE INTO dead_dates (kind, date, marked_at) VALUES (?, ?, ?)",
+            [(kind, d, now) for d in sorted(dates)],
+        )
+        self._conn.commit()
+
+    def dead_dates(self, kind: str) -> set[str]:
+        cur = self._conn.execute("SELECT date FROM dead_dates WHERE kind = ?", (kind,))
+        return {row[0] for row in cur.fetchall()}
 
     def outcomes_for_markets(self, model: str, market_ids: list[str]) -> dict[str, int]:
         if not market_ids:

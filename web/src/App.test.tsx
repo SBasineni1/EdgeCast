@@ -168,3 +168,18 @@ it("shows SIGNAL LOST when the server itself is unreachable", async () => {
   render(<App />);
   expect(await screen.findByText("Signal lost")).toBeInTheDocument();
 });
+
+it("keeps content bright on background refreshes and dims only after repeated failures", async () => {
+  stubLive(LIVE_OUTPUT);
+  render(<App />);
+  await screen.findAllByTestId("rail-city");
+  const main = screen.getByTestId("main-column");
+  expect(main).not.toHaveClass("opacity-40");
+  // upstream starts failing
+  stubLive({ detail: "no live data available: NYC: timeout" }, 502);
+  fireEvent.click(screen.getByRole("button", { name: /Refresh/ }));
+  await screen.findByTestId("upstream-strip");
+  expect(main).not.toHaveClass("opacity-40"); // one miss: stay bright, data is fresh enough
+  fireEvent.click(screen.getByRole("button", { name: /Refresh/ }));
+  await vi.waitFor(() => expect(main).toHaveClass("opacity-40")); // stale after two misses
+});

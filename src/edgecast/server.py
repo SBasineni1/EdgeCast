@@ -41,8 +41,8 @@ def _is_archive_hole(f: dict) -> bool:
     )
 
 
-def _no_data_dates(failures: list[dict]) -> set[str]:
-    """Dates the ensemble archive has no data for — retrying them burns quota forever.
+def _hole_dates(failures: list[dict], prefixes: tuple[str, ...]) -> set[str]:
+    """Dates whose upstream archive has no data — retrying them burns quota forever.
 
     Only dates at least 3 days old are written off; a recent date can still be
     a publication lag rather than a hole in the archive.
@@ -50,7 +50,12 @@ def _no_data_dates(failures: list[dict]) -> set[str]:
     from datetime import date, timedelta
 
     cutoff = (date.today() - timedelta(days=3)).isoformat()
-    return {f["date"] for f in failures if _is_archive_hole(f) and f.get("date", "") <= cutoff}
+    return {
+        f["date"]
+        for f in failures
+        if any(str(f.get("reason", "")).startswith(p) for p in prefixes)
+        and f.get("date", "") <= cutoff
+    }
 
 
 class AnalyzeRequest(BaseModel):
@@ -101,7 +106,6 @@ def create_app(
     app.state.db_path = str(db_path)
     app.state.verify_days = verify_days
     app.state.topup_paused_until = 0.0
-    app.state.dead_dates: set[str] = set()
     if snapshot_daemon:
         threading.Thread(target=_snapshot_daemon, args=(db_path,), daemon=True).start()
 
@@ -192,16 +196,15 @@ def create_app(
         try:
             store = Store(db_path)
             dates = _window_dates(verify_days)
-            missing = [
-                d for d in store.dates_missing(model, dates) if d not in app.state.dead_dates
-            ][:3]
+            dead = store.dead_dates("verify")
+            missing = [d for d in store.dates_missing(model, dates) if d not in dead][:3]
             topup_failures: list[dict] = []
             if missing and time.monotonic() >= app.state.topup_paused_until:
                 topup = run_verification(missing, store, kalshi_client, meteo_client, model=model)
                 topup_failures = topup.failures
                 if _had_429(topup_failures):
                     app.state.topup_paused_until = time.monotonic() + RATE_LIMIT_COOLDOWN_SECONDS
-                app.state.dead_dates.update(_no_data_dates(topup_failures))
+                store.mark_dead("verify", _hole_dates(topup_failures, ("no ensemble data",)))
                 # Archive holes are shown in the coverage strip, not as failures.
                 topup_failures = [f for f in topup_failures if not _is_archive_hole(f)]
             since = min(dates)
@@ -248,13 +251,20 @@ def create_app(
                 out["model_grades"] = None
             else:
                 m_dates = _window_dates(verify_days)
-                m_missing = model_store.dates_missing("day_ahead", m_dates)[:3]
+                g_store = Store(db_path)
+                g_dead = g_store.dead_dates("grade")
+                m_missing = [
+                    d for d in model_store.dates_missing("day_ahead", m_dates) if d not in g_dead
+                ][:3]
                 if m_missing and time.monotonic() >= app.state.topup_paused_until:
                     g_report = grade_days(m_missing, model_store, kalshi_client, meteo_client)
                     if _had_429(g_report.failures):
                         app.state.topup_paused_until = (
                             time.monotonic() + RATE_LIMIT_COOLDOWN_SECONDS
                         )
+                    g_store.mark_dead(
+                        "grade", _hole_dates(g_report.failures, ("no model forecasts",))
+                    )
                 overall = model_store.overall_grades("day_ahead", min(m_dates))
                 if not overall:
                     out["model_grades"] = None
