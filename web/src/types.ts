@@ -74,7 +74,7 @@ export interface ModelGrades {
 }
 
 export const MODEL_NAMES: Record<string, string> = {
-  consensus: "CONSENSUS",
+  consensus: "Consensus",
   ncep_nbm_conus: "NBM",
   gfs_hrrr: "HRRR",
   gfs_global: "GFS",
@@ -92,6 +92,7 @@ export interface VerificationInfo {
   window_days: number;
   n_markets: number;
   n_days: number;
+  coverage?: { date: string; graded: boolean }[];
   kalshi_mismatches: KalshiMismatch[];
   verification_failed: { city: string; stage: string; reason: string }[];
 }

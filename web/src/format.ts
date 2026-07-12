@@ -59,6 +59,12 @@ export function biasWords(bias: number): string {
   return `RUNS ${sign}${Math.abs(bias).toFixed(1)}° ${bias > 0 ? "WARM" : "COOL"}`;
 }
 
+export function leanWords(bias: number): string {
+  if (Math.abs(bias) < 0.05) return "no lean";
+  const sign = bias > 0 ? "+" : "\u2212";
+  return `${sign}${Math.abs(bias).toFixed(1)}\u00b0 ${bias > 0 ? "warm" : "cool"}`;
+}
+
 export function gradeLine(model: string, g: ModelGradeStats): string {
   const hit = g.bucket_hit_rate === null
     ? ""

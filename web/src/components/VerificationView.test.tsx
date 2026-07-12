@@ -14,7 +14,7 @@ it("renders window stats and the clean-mismatch state", () => {
   render(<VerificationView verification={base} />);
   expect(screen.getByText("30D")).toBeInTheDocument();
   expect(screen.getByText("214")).toBeInTheDocument();
-  expect(screen.getByText("29")).toBeInTheDocument();
+  expect(screen.getByText("29 / 30")).toBeInTheDocument();
   expect(screen.getByTestId("no-mismatches")).toBeInTheDocument();
 });
 
@@ -36,5 +36,29 @@ it("renders mismatches and failures", () => {
 
 it("renders empty state without verification data", () => {
   render(<VerificationView verification={null} />);
-  expect(screen.getByText(/NO VERIFICATION DATA YET/)).toBeInTheDocument();
+  expect(screen.getByText(/No verification data yet/)).toBeInTheDocument();
+});
+
+
+it("renders the coverage strip with graded and missing days", () => {
+  render(
+    <VerificationView
+      verification={{
+        ...base,
+        coverage: [
+          { date: "2026-07-01", graded: true },
+          { date: "2026-07-02", graded: false },
+          { date: "2026-07-03", graded: true },
+        ],
+      }}
+    />,
+  );
+  expect(screen.getAllByTestId("coverage-day")).toHaveLength(2);
+  expect(screen.getAllByTestId("coverage-day-missing")).toHaveLength(1);
+  expect(screen.getByText(/Ungraded days/)).toBeInTheDocument();
+});
+
+it("omits the coverage strip without coverage data", () => {
+  render(<VerificationView verification={base} />);
+  expect(screen.queryByTestId("coverage-strip")).toBeNull();
 });

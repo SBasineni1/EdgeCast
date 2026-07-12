@@ -282,8 +282,12 @@ def test_live_includes_verification_block(live_client):
     out = live_client.get("/api/live").json()
     v = out["verification"]
     assert set(v) == {
-        "window_days", "n_markets", "n_days", "kalshi_mismatches", "verification_failed",
+        "window_days", "n_markets", "n_days", "coverage",
+        "kalshi_mismatches", "verification_failed",
     }
+    assert len(v["coverage"]) == 30
+    assert {"date": "2026-07-02", "graded": True} in v["coverage"]
+    assert v["coverage"] == sorted(v["coverage"], key=lambda c: c["date"])
     assert v["window_days"] == 30
     assert v["n_markets"] == 1
     assert v["n_days"] == 1
@@ -434,7 +438,9 @@ def test_no_data_dates_are_not_retried(fixtures_dir, tmp_path, monkeypatch):
     app = create_app(fixtures_dir, web_dist=tmp_path / "no-dist", db_path=db)
     client = TestClient(app)
 
-    client.get("/api/live")
+    first = client.get("/api/live").json()
+    # archive holes surface in the coverage strip, not the failures list
+    assert first["verification"]["verification_failed"] == []
     dead = seen[0][-1]  # the date reported as having no archive data
     client.get("/api/live")
     assert len(seen) == 2

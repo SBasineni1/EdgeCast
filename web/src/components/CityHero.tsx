@@ -82,7 +82,7 @@ export function CityHero({
         </span>
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Consensus high">
+        <StatCard label="Consensus High">
           <p className="flex items-baseline gap-3">
             <span
               ref={numRef}
@@ -98,7 +98,7 @@ export function CityHero({
             )}
           </p>
         </StatCard>
-        <StatCard label="Biggest edge">
+        <StatCard label="Biggest Edge">
           {big !== null ? (
             <p className="flex items-baseline gap-3" data-testid="hero-edge">
               <span
@@ -121,7 +121,7 @@ export function CityHero({
             <p className="font-display text-4xl font-medium tabular-nums tracking-tight text-text-3">—</p>
           )}
         </StatCard>
-        <StatCard label="Model highs">
+        <StatCard label="Model Highs">
           {sourceHighs ? (
             <p className="pt-1 text-sm leading-6 tabular-nums text-text-2" data-testid="hero-models">
               {sourceHighs}

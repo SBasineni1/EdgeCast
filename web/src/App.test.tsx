@@ -135,7 +135,7 @@ it("switches views from the sidebar", async () => {
   expect(screen.getByTestId("no-mismatches")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: /Model Skill/ }));
   expect(screen.getByTestId("verdict")).toHaveTextContent(
-    "CONSENSUS CLOSEST · DAY-FORWARD · LAST 30 DAYS",
+    "Consensus closest · day-ahead · last 30 days",
   );
   fireEvent.click(screen.getByRole("button", { name: /Dashboard/ }));
   expect(screen.getByTestId("hero-temp")).toBeInTheDocument();

@@ -22,14 +22,17 @@ const modelGrades: ModelGrades = {
 it("renders per-model grades with closest-model verdict and by-city lines", () => {
   render(<SkillView modelGrades={modelGrades} cities={cities} />);
   expect(screen.getByTestId("verdict")).toHaveTextContent(
-    "CONSENSUS CLOSEST · DAY-FORWARD · LAST 30 DAYS",
+    "Consensus closest · day-ahead · last 30 days",
   );
   expect(screen.getByText("1.5°")).toBeInTheDocument();
   expect(screen.getByText("Consensus right bucket")).toBeInTheDocument();
   expect(screen.getByText("41%")).toBeInTheDocument();
   const city = screen.getByTestId("skill-city");
   expect(city).toHaveTextContent("New York");
-  expect(city).toHaveTextContent("CONSENSUS · OFF BY 1.4°F · RIGHT BUCKET 45% · RUNS +0.2° WARM");
+  expect(city).toHaveTextContent("Consensus");
+  expect(city).toHaveTextContent("1.4°");
+  expect(city).toHaveTextContent("45%");
+  expect(city).toHaveTextContent("+0.2° warm");
 });
 
 it("breaks MAE ties by bucket hit rate", () => {
@@ -42,10 +45,10 @@ it("breaks MAE ties by bucket hit rate", () => {
     },
   };
   render(<SkillView modelGrades={tied} cities={{}} />);
-  expect(screen.getByTestId("verdict")).toHaveTextContent("HRRR CLOSEST");
+  expect(screen.getByTestId("verdict")).toHaveTextContent("HRRR closest");
 });
 
 it("null model grades show awaiting-backfill state", () => {
   render(<SkillView modelGrades={null} cities={{}} />);
-  expect(screen.getByTestId("verdict")).toHaveTextContent("AWAITING MODEL GRADES");
+  expect(screen.getByTestId("verdict")).toHaveTextContent("Awaiting model grades");
 });

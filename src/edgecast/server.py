@@ -33,6 +33,12 @@ def _had_429(failures: list[dict]) -> bool:
     return any("429" in f.get("reason", "") for f in failures)
 
 
+def _is_archive_hole(f: dict) -> bool:
+    return f.get("stage") == "open-meteo" and str(f.get("reason", "")).startswith(
+        "no ensemble data"
+    )
+
+
 def _no_data_dates(failures: list[dict]) -> set[str]:
     """Dates the ensemble archive has no data for — retrying them burns quota forever.
 
@@ -42,13 +48,7 @@ def _no_data_dates(failures: list[dict]) -> set[str]:
     from datetime import date, timedelta
 
     cutoff = (date.today() - timedelta(days=3)).isoformat()
-    return {
-        f["date"]
-        for f in failures
-        if f.get("stage") == "open-meteo"
-        and str(f.get("reason", "")).startswith("no ensemble data")
-        and f.get("date", "") <= cutoff
-    }
+    return {f["date"] for f in failures if _is_archive_hole(f) and f.get("date", "") <= cutoff}
 
 
 class AnalyzeRequest(BaseModel):
@@ -155,8 +155,11 @@ def create_app(
                 if _had_429(topup_failures):
                     app.state.topup_paused_until = time.monotonic() + RATE_LIMIT_COOLDOWN_SECONDS
                 app.state.dead_dates.update(_no_data_dates(topup_failures))
+                # Archive holes are shown in the coverage strip, not as failures.
+                topup_failures = [f for f in topup_failures if not _is_archive_hole(f)]
             since = min(dates)
             stats = store.window_stats(model, since)
+            graded = set(dates) - set(store.dates_missing(model, dates))
             if stats is None:
                 out["verification"] = None
             else:
@@ -164,6 +167,7 @@ def create_app(
                     "window_days": verify_days,
                     "n_markets": stats.n_markets,
                     "n_days": stats.n_days,
+                    "coverage": [{"date": d, "graded": d in graded} for d in sorted(dates)],
                     "kalshi_mismatches": [
                         {"market_id": r.market_id, "kalshi_result": r.kalshi_result,
                          "edgecast_outcome": r.outcome}
