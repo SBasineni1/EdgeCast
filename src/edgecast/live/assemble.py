@@ -1,5 +1,6 @@
 """Assemble live Kalshi markets + Open-Meteo ensembles into pipeline scenarios."""
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
@@ -66,6 +67,33 @@ def _calibration(
         return {m: 0.0 for m in models}, consensus_sigma([])
 
 
+FETCH_WORKERS = 8  # cold caches mean up to 2 HTTP calls per city; fetch cities concurrently
+
+
+def _fetch_city(series: str, st, kalshi_client: httpx.Client, meteo_client: httpx.Client) -> dict:
+    """Network-only phase for one city; safe to run in a worker thread."""
+    markets, q_age, q_err = _cached(
+        QUOTES_CACHE, series, QUOTES_TTL,
+        lambda: fetch_markets(series, kalshi_client),
+    )
+    if q_err is not None:
+        return {"fail": f"kalshi: {q_err}"}
+    quotes = [q for m in markets if (q := to_quote(m, st.city)) is not None]
+    if not quotes:
+        return {"fail": "kalshi: no usable open markets"}
+    event_date = quotes[0].event_date
+    highs, e_age, e_err = _cached(
+        ENSEMBLES_CACHE, f"{series}:{event_date}", ENSEMBLES_TTL,
+        lambda: fetch_live_model_highs(st.lat, st.lon, event_date, st.tz, meteo_client),
+    )
+    if e_err is not None:
+        return {"fail": f"open-meteo: {e_err}"}
+    return {
+        "quotes": quotes, "event_date": event_date, "highs": highs,
+        "q_age": q_age, "e_age": e_age,
+    }
+
+
 def build_live_scenarios(
     kalshi_client: httpx.Client, meteo_client: httpx.Client,
     model_store: ModelStore | None = None,
@@ -73,28 +101,22 @@ def build_live_scenarios(
     result = LiveResult(scenarios=[])
     max_q_age = 0
     max_e_age = 0
+    with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
+        fetched = {
+            series: pool.submit(_fetch_city, series, st, kalshi_client, meteo_client)
+            for series, st in STATIONS.items()
+        }
+    # Calibration and scenario assembly stay on this thread (single DB connection).
     for series, st in STATIONS.items():
-        markets, q_age, q_err = _cached(
-            QUOTES_CACHE, series, QUOTES_TTL,
-            lambda s=series: fetch_markets(s, kalshi_client),
-        )
-        if q_err is not None:
-            result.cities_failed.append({"city": st.city, "reason": f"kalshi: {q_err}"})
+        city = fetched[series].result()
+        if "fail" in city:
+            result.cities_failed.append({"city": st.city, "reason": city["fail"]})
             continue
-        quotes = [q for m in markets if (q := to_quote(m, st.city)) is not None]
-        if not quotes:
-            result.cities_failed.append({"city": st.city, "reason": "kalshi: no usable open markets"})
-            continue
-        event_date = quotes[0].event_date
-        highs, e_age, e_err = _cached(
-            ENSEMBLES_CACHE, f"{series}:{event_date}", ENSEMBLES_TTL,
-            lambda st=st, d=event_date: fetch_live_model_highs(
-                st.lat, st.lon, d, st.tz, meteo_client
-            ),
-        )
-        if e_err is not None:
-            result.cities_failed.append({"city": st.city, "reason": f"open-meteo: {e_err}"})
-            continue
+        quotes = city["quotes"]
+        event_date = city["event_date"]
+        highs = city["highs"]
+        q_age = city["q_age"]
+        e_age = city["e_age"]
         available = {m: h for m, h in highs.items() if h is not None}
         if not available:
             result.cities_failed.append(

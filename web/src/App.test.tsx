@@ -183,3 +183,18 @@ it("keeps content bright on background refreshes and dims only after repeated fa
   fireEvent.click(screen.getByRole("button", { name: /Refresh/ }));
   await vi.waitFor(() => expect(main).toHaveClass("opacity-40")); // stale after two misses
 });
+
+it("shows skeleton placeholders while the first load is in flight", async () => {
+  vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {}))); // never resolves
+  render(<App />);
+  expect(screen.getByTestId("dashboard-skeleton")).toBeInTheDocument();
+  expect(screen.getByTestId("rail-skeleton")).toBeInTheDocument();
+});
+
+it("replaces the skeleton with real content once data arrives", async () => {
+  stubLive(LIVE_OUTPUT);
+  render(<App />);
+  await screen.findAllByTestId("rail-city");
+  expect(screen.queryByTestId("dashboard-skeleton")).toBeNull();
+  expect(screen.queryByTestId("rail-skeleton")).toBeNull();
+});

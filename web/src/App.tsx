@@ -7,6 +7,7 @@ import { CityRail } from "./components/CityRail";
 import { LadderChart } from "./components/LadderChart";
 import { LadderTable } from "./components/LadderTable";
 import { Sidebar, type View } from "./components/Sidebar";
+import { DashboardSkeleton, RailSkeleton } from "./components/Skeleton";
 import { SkillView } from "./components/SkillView";
 import { TopBar } from "./components/TopBar";
 import { VerificationView } from "./components/VerificationView";
@@ -151,6 +152,7 @@ export default function App() {
             <span className="font-bold text-down">INPUT ERROR</span> {inputError}
           </p>
         )}
+        {output === null && <DashboardSkeleton />}
         {output !== null && (
           <div
             ref={mainRef}
@@ -181,6 +183,7 @@ export default function App() {
           </div>
         )}
       </div>
+      {output === null && <RailSkeleton />}
       {output !== null && (
         <CityRail
           groups={groups}
