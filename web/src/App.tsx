@@ -168,7 +168,9 @@ export default function App() {
                 <LadderTable results={selectedResults} consensus={consensus} mismatches={mismatches} />
               </>
             )}
-            {view === "verification" && <VerificationView verification={output.verification} />}
+            {view === "verification" && (
+              <VerificationView verification={output.verification} snapshots={output.snapshots} />
+            )}
             {view === "skill" && <SkillView modelGrades={output.model_grades} cities={cities} />}
           </div>
         )}

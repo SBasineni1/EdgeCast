@@ -36,6 +36,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p_serve = sub.add_parser("serve", help="serve the dashboard API and UI locally")
     p_serve.add_argument("--port", type=int, default=8000)
     p_serve.add_argument(
+        "--host", default="127.0.0.1", help="bind address (0.0.0.0 inside containers)"
+    )
+    p_serve.add_argument(
         "--fixtures-dir", default="fixtures", help="directory of scenario JSON files"
     )
     p_serve.add_argument("--db", default="data/edgecast.db")
@@ -45,6 +48,15 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_backfill.add_argument("--days", type=int, default=30)
     p_backfill.add_argument("--db", default="data/edgecast.db")
+    p_snapshot = sub.add_parser(
+        "snapshot",
+        help="freeze the day-ahead model view of tomorrow's markets (11 AM ET rule)",
+    )
+    p_snapshot.add_argument("--db", default="data/edgecast.db")
+    p_snapshot.add_argument(
+        "--force", action="store_true",
+        help="capture even before 11 AM ET (records the actual capture time)",
+    )
     return parser
 
 
@@ -54,6 +66,8 @@ def main(argv: list[str] | None = None) -> int:
         return _serve(args)
     if args.command == "backfill":
         return _backfill(args)
+    if args.command == "snapshot":
+        return _snapshot(args)
     return _analyze(args)
 
 
@@ -112,6 +126,41 @@ def _backfill(args) -> int:
     return 0 if ok else 1
 
 
+def _snapshot(args) -> int:
+    from datetime import date, timedelta
+
+    import httpx
+
+    from edgecast.live.assemble import build_live_scenarios
+    from edgecast.model_store import ModelStore
+    from edgecast.pipeline import analyze as run_analyze
+    from edgecast.snapshot import capture_snapshot, due_event_date
+    from edgecast.store import Store
+
+    store = Store(args.db)
+    event_date = due_event_date()
+    if event_date is None:
+        if not args.force:
+            print("snapshot: before 11 AM ET - nothing to do (use --force to capture anyway)")
+            return 1
+        event_date = (date.today() + timedelta(days=1)).isoformat()
+    if store.snapshot_taken_at(event_date) is not None:
+        print(f"snapshot: already taken for {event_date}")
+        return 0
+    with httpx.Client() as kc, httpx.Client() as mc:
+        live = build_live_scenarios(kc, mc, ModelStore(args.db))
+        results, _ = run_analyze(live.scenarios)
+        n = capture_snapshot(
+            store, results, live.model_highs, live.consensus_sigma,
+            force_event_date=event_date if args.force else None,
+        )
+    if n == 0:
+        print(f"snapshot: no open markets for {event_date} yet - try again later")
+        return 1
+    print(f"snapshot: froze {n} markets for {event_date}")
+    return 0
+
+
 def _serve(args) -> int:
     try:
         import uvicorn
@@ -124,10 +173,11 @@ def _serve(args) -> int:
         )
         return 2
     app = create_app(
-        Path(args.fixtures_dir), db_path=args.db, verify_days=args.verify_days
+        Path(args.fixtures_dir), db_path=args.db, verify_days=args.verify_days,
+        snapshot_daemon=True,
     )
-    print(f"EdgeCast serving on http://127.0.0.1:{args.port}")
-    uvicorn.run(app, host="127.0.0.1", port=args.port)
+    print(f"EdgeCast serving on http://{args.host}:{args.port}")
+    uvicorn.run(app, host=args.host, port=args.port)
     return 0
 
 

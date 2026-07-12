@@ -88,6 +88,17 @@ export interface KalshiMismatch {
   edgecast_outcome: number;
 }
 
+export interface SnapshotsInfo {
+  window_days: number;
+  pending_event_date: string | null;
+  taken_at: string | null;
+  n_scored: number;
+  n_pending: number;
+  model_hits: number;
+  market_hits: number;
+  days: { event_date: string; n: number; model_hits: number; market_hits: number }[];
+}
+
 export interface VerificationInfo {
   window_days: number;
   n_markets: number;
@@ -104,5 +115,6 @@ export interface AnalysisOutput {
   aggregate: Aggregate;
   live?: LiveInfo;
   verification?: VerificationInfo | null;
+  snapshots?: SnapshotsInfo | null;
   model_grades?: ModelGrades | null;
 }

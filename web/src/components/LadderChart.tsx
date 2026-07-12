@@ -64,7 +64,7 @@ export function LadderChart({ results, consensus }: LadderChartProps) {
   return (
     <section className="rounded-2xl border border-hairline bg-panel p-5 shadow-sm" data-anim="chart">
       <div className="flex items-center justify-between pb-4">
-        <p className="text-xs font-medium text-text-3">Probability by bucket</p>
+        <p className="text-xs font-medium text-text-3">Temperature Probabilities</p>
         <div className="flex items-center gap-4 text-xs text-text-2">
           <span className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-gold" aria-hidden="true" />

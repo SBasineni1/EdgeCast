@@ -445,3 +445,15 @@ def test_no_data_dates_are_not_retried(fixtures_dir, tmp_path, monkeypatch):
     client.get("/api/live")
     assert len(seen) == 2
     assert dead not in seen[1]  # tombstoned: never re-fetched, no quota burned on it
+
+
+def test_live_snapshots_block(live_client):
+    out = live_client.get("/api/live").json()
+    s = out["snapshots"]
+    assert set(s) == {
+        "window_days", "pending_event_date", "taken_at",
+        "n_scored", "n_pending", "model_hits", "market_hits", "days",
+    }
+    assert s["window_days"] == 30
+    assert s["n_scored"] == 0
+    assert s["days"] == []

@@ -1,6 +1,7 @@
 """Local API server: wraps the pipeline for the dashboard frontend."""
 
 import json
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,6 +19,7 @@ from edgecast.live.assemble import build_live_scenarios
 from edgecast.live.stations import STATIONS
 from edgecast.model_store import ModelStore
 from edgecast.pipeline import analyze
+from edgecast.snapshot import capture_snapshot, due_event_date, scorecard
 from edgecast.store import Store
 from edgecast.verify import verify_days as run_verification
 
@@ -63,18 +65,45 @@ def _window_dates(days: int) -> list[str]:
     return [(yesterday - timedelta(days=i)).isoformat() for i in range(days)]
 
 
+SNAPSHOT_POLL_SECONDS = 300.0
+
+
+def _snapshot_daemon(db_path: str | Path) -> None:
+    """Freeze tomorrow's ladder at 11 AM ET even when nobody has the dashboard open."""
+    while True:
+        try:
+            due = due_event_date()
+            if due is not None and Store(db_path).snapshot_taken_at(due) is None:
+                try:
+                    model_store: ModelStore | None = ModelStore(db_path)
+                except Exception:  # noqa: BLE001
+                    model_store = None
+                with httpx.Client() as kc, httpx.Client() as mc:
+                    live = build_live_scenarios(kc, mc, model_store)
+                    results, _ = analyze(live.scenarios)
+                    capture_snapshot(
+                        Store(db_path), results, live.model_highs, live.consensus_sigma
+                    )
+        except Exception:  # noqa: BLE001 - the daemon must never die
+            pass
+        time.sleep(SNAPSHOT_POLL_SECONDS)
+
+
 def create_app(
     fixtures_dir: Path,
     web_dist: Path | None = None,
     *,
     db_path: str | Path = "data/edgecast.db",
     verify_days: int = 30,
+    snapshot_daemon: bool = False,
 ) -> FastAPI:
     app = FastAPI(title="EdgeCast")
     app.state.db_path = str(db_path)
     app.state.verify_days = verify_days
     app.state.topup_paused_until = 0.0
     app.state.dead_dates: set[str] = set()
+    if snapshot_daemon:
+        threading.Thread(target=_snapshot_daemon, args=(db_path,), daemon=True).start()
 
     @app.get("/api/scenario-files")
     def scenario_files() -> dict:
@@ -175,8 +204,24 @@ def create_app(
                     ],
                     "verification_failed": topup_failures,
                 }
+            # Day-ahead snapshots: freeze tomorrow's ladder once per day at 11 AM ET,
+            # then score settled ones (model's top bucket vs what settled YES).
+            capture_snapshot(store, results, live.model_highs, live.consensus_sigma)
+            pending = due_event_date()
+            card = scorecard(store, model, since)
+            out["snapshots"] = {
+                "window_days": verify_days,
+                "pending_event_date": pending,
+                "taken_at": store.snapshot_taken_at(pending) if pending else None,
+                "n_scored": card.n_scored,
+                "n_pending": card.n_pending,
+                "model_hits": card.model_hits,
+                "market_hits": card.market_hits,
+                "days": card.days,
+            }
         except Exception as e:  # noqa: BLE001 - verification must never break the ladder
             out["verification"] = None
+            out.setdefault("snapshots", None)
             out["live"]["cities_failed"].append(
                 {"city": "*", "reason": f"verification store: {type(e).__name__}: {e}"}
             )

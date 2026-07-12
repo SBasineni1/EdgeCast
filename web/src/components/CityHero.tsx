@@ -12,6 +12,29 @@ function biggestEdge(results: ScenarioResult[]): ScenarioResult | null {
   return flagged.reduce((a, b) => (Math.abs(b.edge.value) > Math.abs(a.edge.value) ? b : a));
 }
 
+function DeltaChip({ delta }: { delta: number | null }) {
+  if (delta === null) return null;
+  if (Math.abs(delta) < 0.05) {
+    return (
+      <span className="rounded-full bg-panel-2 px-1.5 py-0.5 text-[11px] tabular-nums text-text-3">
+        ±0.0°
+      </span>
+    );
+  }
+  const up = delta > 0;
+  return (
+    <span
+      className={`rounded-full px-1.5 py-0.5 text-[11px] tabular-nums ${
+        up ? "bg-up/10 text-up" : "bg-down/10 text-down"
+      }`}
+      title={up ? "above consensus" : "below consensus"}
+    >
+      {up ? "▲ +" : "▼ −"}
+      {Math.abs(delta).toFixed(1)}°
+    </span>
+  );
+}
+
 function StatCard({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-hairline bg-panel p-4 shadow-sm">
@@ -66,9 +89,10 @@ export function CityHero({
     };
   }, [consensus]);
 
-  const sourceHighs = SOURCE_ORDER.filter((m) => modelHighs?.[m] != null)
-    .map((m) => `${MODEL_NAMES[m]} ${(modelHighs![m] as number).toFixed(1)}`)
-    .join(" · ");
+  const modelRows = SOURCE_ORDER.filter((m) => modelHighs?.[m] != null).map((m) => ({
+    model: m,
+    value: modelHighs![m] as number,
+  }));
   const big = biggestEdge(results);
   const bigUp = big !== null && big.edge.flag === "model_higher";
 
@@ -82,7 +106,7 @@ export function CityHero({
         </span>
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Consensus High">
+        <StatCard label="Mean High">
           <p className="flex items-baseline gap-3">
             <span
               ref={numRef}
@@ -121,15 +145,26 @@ export function CityHero({
             <p className="font-display text-4xl font-medium tabular-nums tracking-tight text-text-3">—</p>
           )}
         </StatCard>
-        <StatCard label="Model Highs">
-          {sourceHighs ? (
-            <p className="pt-1 text-sm leading-6 tabular-nums text-text-2" data-testid="hero-models">
-              {sourceHighs}
-            </p>
+        <div
+          className="flex flex-col justify-center rounded-2xl border border-hairline bg-panel p-4 shadow-sm"
+          aria-label="model highs"
+        >
+          {modelRows.length > 0 ? (
+            <div className="flex flex-col gap-1" data-testid="hero-models">
+              {modelRows.map(({ model, value }) => (
+                <div key={model} className="flex items-baseline justify-between gap-2 text-sm tabular-nums">
+                  <span className="text-text-3">{MODEL_NAMES[model] ?? model}</span>
+                  <span className="flex items-baseline gap-2">
+                    <span className="font-medium">{value.toFixed(1)}°</span>
+                    <DeltaChip delta={consensus !== null ? value - consensus : null} />
+                  </span>
+                </div>
+              ))}
+            </div>
           ) : (
             <p className="font-display text-4xl font-medium tabular-nums tracking-tight text-text-3">—</p>
           )}
-        </StatCard>
+        </div>
       </div>
     </section>
   );

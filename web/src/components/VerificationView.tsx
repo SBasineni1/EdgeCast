@@ -1,4 +1,5 @@
-import type { VerificationInfo } from "../types";
+import type { SnapshotsInfo, VerificationInfo } from "../types";
+import { formatDate } from "../format";
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -9,11 +10,83 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-interface VerificationViewProps {
-  verification: VerificationInfo | null | undefined;
+function SnapshotStatus({ s }: { s: SnapshotsInfo }) {
+  if (s.taken_at !== null && s.pending_event_date !== null) {
+    const at = new Date(s.taken_at).toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "America/New_York",
+    });
+    return (
+      <p className="text-sm text-text-2" data-testid="snapshot-status">
+        Tomorrow's ladder ({formatDate(s.pending_event_date)}) frozen at {at} ET
+      </p>
+    );
+  }
+  return (
+    <p className="text-sm text-text-3" data-testid="snapshot-status">
+      Next capture after 11:00 AM ET — an hour after tomorrow's markets open
+    </p>
+  );
 }
 
-export function VerificationView({ verification }: VerificationViewProps) {
+function SnapshotCard({ s }: { s: SnapshotsInfo }) {
+  return (
+    <section className="rounded-2xl border border-hairline bg-panel p-5 shadow-sm">
+      <div className="flex items-baseline justify-between pb-1">
+        <p className="text-xs font-medium text-text-3">Day-ahead snapshots · 11 AM ET</p>
+        {s.n_pending > 0 && (
+          <span className="text-xs tabular-nums text-text-3">
+            {s.n_pending} awaiting settlement
+          </span>
+        )}
+      </div>
+      <SnapshotStatus s={s} />
+      {s.n_scored > 0 ? (
+        <>
+          <div className="flex gap-3 pt-4" data-testid="snapshot-score">
+            <span className="rounded-full bg-up/10 px-3 py-1 text-sm tabular-nums text-up">
+              Model {s.model_hits}/{s.n_scored}
+            </span>
+            <span className="rounded-full bg-panel-2 px-3 py-1 text-sm tabular-nums text-text-2">
+              Market at snapshot {s.market_hits}/{s.n_scored}
+            </span>
+          </div>
+          <div className="flex flex-col pt-3">
+            {s.days.map((d) => (
+              <div
+                key={d.event_date}
+                className="flex items-baseline justify-between border-b border-hairline py-2 text-sm tabular-nums last:border-0"
+                data-testid="snapshot-day"
+              >
+                <span className="text-text-2">{formatDate(d.event_date)}</span>
+                <span className="text-text-2">
+                  model {d.model_hits}/{d.n} · market {d.market_hits}/{d.n}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="pt-3 text-xs text-text-3">
+            A hit means the bucket ranked highest more than 24 hours ahead is the one that
+            settled YES.
+          </p>
+        </>
+      ) : (
+        <p className="pt-3 text-xs text-text-3" data-testid="snapshot-empty">
+          No snapshots scored yet — a frozen ladder scores once its day settles, so the
+          first results appear the evening after the first 11 AM capture.
+        </p>
+      )}
+    </section>
+  );
+}
+
+interface VerificationViewProps {
+  verification: VerificationInfo | null | undefined;
+  snapshots?: SnapshotsInfo | null;
+}
+
+export function VerificationView({ verification, snapshots }: VerificationViewProps) {
   if (verification == null) {
     return (
       <p className="rounded-2xl border border-hairline bg-panel p-5 text-sm text-text-3 shadow-sm">
@@ -30,6 +103,7 @@ export function VerificationView({ verification }: VerificationViewProps) {
         <Stat label="Markets checked" value={`${verification.n_markets}`} />
         <Stat label="Days graded" value={`${verification.n_days} / ${verification.window_days}`} />
       </div>
+      {snapshots != null && <SnapshotCard s={snapshots} />}
       {coverage.length > 0 && (
         <section className="rounded-2xl border border-hairline bg-panel p-5 shadow-sm">
           <div className="flex items-center justify-between pb-3">

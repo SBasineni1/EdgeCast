@@ -1,0 +1,11 @@
+.git
+.venv
+web
+node_modules
+data
+tests
+docs
+frames
+.superpowers
+__pycache__
+*.pyc

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it } from "vitest";
 import type { ModelGrades } from "../types";
 import { SkillView } from "./SkillView";
@@ -19,7 +19,7 @@ const modelGrades: ModelGrades = {
   },
 };
 
-it("renders per-model grades with closest-model verdict and by-city lines", () => {
+it("renders per-model grades with closest-model verdict and by-city table", () => {
   render(<SkillView modelGrades={modelGrades} cities={cities} />);
   expect(screen.getByTestId("verdict")).toHaveTextContent(
     "Consensus closest · day-ahead · last 30 days",
@@ -27,12 +27,58 @@ it("renders per-model grades with closest-model verdict and by-city lines", () =
   expect(screen.getByText("1.5°")).toBeInTheDocument();
   expect(screen.getByText("Consensus right bucket")).toBeInTheDocument();
   expect(screen.getByText("41%")).toBeInTheDocument();
+  // the dropdown carries the city name; the table carries the grades
+  expect(screen.getByLabelText("city")).toHaveDisplayValue("New York");
   const city = screen.getByTestId("skill-city");
-  expect(city).toHaveTextContent("New York");
   expect(city).toHaveTextContent("Consensus");
   expect(city).toHaveTextContent("1.4°");
   expect(city).toHaveTextContent("45%");
   expect(city).toHaveTextContent("+0.2° warm");
+  // 45% right bucket is green; a warm lean reads red
+  expect(screen.getByTestId("bucket-cell")).toHaveClass("text-up");
+  expect(screen.getByTestId("lean-cell")).toHaveClass("text-down");
+});
+
+it("switches cities from the dropdown", () => {
+  const two: ModelGrades = {
+    ...modelGrades,
+    by_city: {
+      NYC: { consensus: { n_days: 28, mae: 1.4, bias: 0.2, bucket_hit_rate: 0.45 } },
+      CHI: { consensus: { n_days: 28, mae: 2.0, bias: -1.1, bucket_hit_rate: 0.15 } },
+    },
+  };
+  render(
+    <SkillView
+      modelGrades={two}
+      cities={{ ...cities, CHI: { name: "Chicago", station: "Midway", series: "KXHIGHCHI" } }}
+    />,
+  );
+  // CHI sorts first -> default selection
+  expect(screen.getByTestId("skill-city")).toHaveTextContent("2.0°");
+  fireEvent.change(screen.getByLabelText("city"), { target: { value: "NYC" } });
+  expect(screen.getByTestId("skill-city")).toHaveTextContent("1.4°");
+});
+
+it("colors bucket rates red / yellow / green by thresholds and cool leans blue", () => {
+  const graded: ModelGrades = {
+    ...modelGrades,
+    by_city: {
+      NYC: {
+        consensus: { n_days: 28, mae: 1.4, bias: -0.9, bucket_hit_rate: 0.15 },
+        gfs_hrrr: { n_days: 28, mae: 2.0, bias: 0.0, bucket_hit_rate: 0.3 },
+        gfs_global: { n_days: 28, mae: 2.2, bias: 0.9, bucket_hit_rate: 0.41 },
+      },
+    },
+  };
+  render(<SkillView modelGrades={graded} cities={cities} />);
+  const buckets = screen.getAllByTestId("bucket-cell");
+  expect(buckets[0]).toHaveClass("text-down"); // consensus 15% < 20
+  expect(buckets[1]).toHaveClass("text-mid"); // HRRR 30% in 20-40
+  expect(buckets[2]).toHaveClass("text-up"); // GFS 41% > 40
+  const leans = screen.getAllByTestId("lean-cell");
+  expect(leans[0]).toHaveClass("text-cool"); // -0.9° cool
+  expect(leans[1]).toHaveClass("text-text-3"); // no lean
+  expect(leans[2]).toHaveClass("text-down"); // +0.9° warm
 });
 
 it("breaks MAE ties by bucket hit rate", () => {
