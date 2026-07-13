@@ -3,7 +3,7 @@ import type { CityInfo, ModelGrades, ModelGradeStats } from "../types";
 import { MODEL_NAMES, MODEL_ORDER } from "../types";
 import { closestModel, leanWords } from "../format";
 
-const ROW_GRID = "grid grid-cols-[7rem_5rem_7rem_1fr] items-baseline gap-x-4";
+const ROW_GRID = "grid grid-cols-[4.5rem_3rem_4.5rem_1fr] items-baseline gap-x-2 sm:grid-cols-[7rem_5rem_7rem_1fr] sm:gap-x-4";
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (

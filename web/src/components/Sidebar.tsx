@@ -57,7 +57,7 @@ export function Sidebar({ view, onView, threshold, onThreshold }: SidebarProps) 
   const step = (d: number) =>
     onThreshold(Math.min(1, Math.max(0, Math.round((threshold + d) * 100) / 100)));
   return (
-    <aside className="sticky top-0 flex h-screen w-56 shrink-0 flex-col gap-8 overflow-y-auto border-r border-hairline bg-panel px-5 py-7">
+    <aside className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col gap-8 overflow-y-auto border-r border-hairline bg-panel px-5 py-7 lg:flex">
       <span className="font-display text-lg tracking-tight" data-anim="sidebar-item">
         <span className="font-bold">Edge</span>Cast<span className="text-lime">.</span>
       </span>

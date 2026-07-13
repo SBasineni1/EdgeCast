@@ -45,7 +45,7 @@ export function DashboardSkeleton() {
 export function RailSkeleton() {
   return (
     <aside
-      className="sticky top-0 flex h-screen w-72 shrink-0 flex-col gap-3 overflow-hidden border-l border-hairline px-5 py-7"
+      className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col gap-3 overflow-hidden border-l border-hairline px-5 py-7 xl:flex"
       data-testid="rail-skeleton"
       aria-hidden="true"
     >

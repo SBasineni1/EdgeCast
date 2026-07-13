@@ -1,7 +1,7 @@
 import type { KalshiMismatch, ScenarioResult } from "../types";
 import { markedScenarioId, rangeLabel, sortKey } from "../format";
 
-const GRID = "grid grid-cols-[1fr_5.5rem_5.5rem_6rem] items-center gap-4";
+const GRID = "grid grid-cols-[1fr_3rem_3rem_4.5rem] items-center gap-2 sm:grid-cols-[1fr_5.5rem_5.5rem_6rem] sm:gap-4";
 
 function ProbCell({ value, tone }: { value: number; tone: "gold" | "lime" }) {
   const pct = Math.min(100, Math.max(0, value * 100));

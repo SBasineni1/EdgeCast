@@ -131,13 +131,13 @@ it("switches views from the sidebar", async () => {
   stubLive(LIVE_OUTPUT);
   render(<App />);
   await screen.findAllByTestId("rail-city");
-  fireEvent.click(screen.getByRole("button", { name: /Verification/ }));
+  fireEvent.click(screen.getAllByRole("button", { name: /Verification/ })[0]);
   expect(screen.getByTestId("no-mismatches")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: /Model Skill/ }));
+  fireEvent.click(screen.getAllByRole("button", { name: /Model Skill/ })[0]);
   expect(screen.getByTestId("verdict")).toHaveTextContent(
     "Consensus closest · day-ahead · last 30 days",
   );
-  fireEvent.click(screen.getByRole("button", { name: /Dashboard/ }));
+  fireEvent.click(screen.getAllByRole("button", { name: /Dashboard/ })[0]);
   expect(screen.getByTestId("hero-temp")).toBeInTheDocument();
 });
 

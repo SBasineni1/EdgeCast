@@ -72,7 +72,7 @@ export function HelpPanel({ onClose }: HelpPanelProps) {
       role="dialog"
       aria-label="help"
       data-testid="help-panel"
-      className="fixed left-60 top-14 z-50 max-h-[80vh] w-[26rem] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-hairline bg-panel p-5 shadow-lg"
+      className="fixed left-4 right-4 top-14 z-50 max-h-[80vh] w-auto overflow-y-auto rounded-2xl border border-hairline bg-panel p-5 shadow-lg lg:left-60 lg:right-auto lg:w-[26rem]"
     >
       <div className="flex items-baseline justify-between pb-3">
         <span className="font-display text-sm font-semibold">Reading this dashboard</span>

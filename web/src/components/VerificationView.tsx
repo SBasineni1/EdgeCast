@@ -98,7 +98,7 @@ export function VerificationView({ verification, snapshots }: VerificationViewPr
   const nMissing = coverage.filter((c) => !c.graded).length;
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="Window" value={`${verification.window_days}D`} />
         <Stat label="Markets checked" value={`${verification.n_markets}`} />
         <Stat label="Days graded" value={`${verification.n_days} / ${verification.window_days}`} />

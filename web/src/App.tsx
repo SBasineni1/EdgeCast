@@ -4,8 +4,10 @@ import { analyzeLive, InputError, UpstreamError } from "./api";
 import type { AnalysisOutput, ScenarioResult } from "./types";
 import { CityHero } from "./components/CityHero";
 import { CityRail } from "./components/CityRail";
+import { CityStrip } from "./components/CityStrip";
 import { LadderChart } from "./components/LadderChart";
 import { LadderTable } from "./components/LadderTable";
+import { MobileNav } from "./components/MobileNav";
 import { Sidebar, type View } from "./components/Sidebar";
 import { DashboardSkeleton, RailSkeleton } from "./components/Skeleton";
 import { SkillView } from "./components/SkillView";
@@ -127,9 +129,10 @@ export default function App() {
       : [];
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-[1480px]">
+    <main className="mx-auto flex min-h-screen max-w-[1480px] flex-col lg:flex-row">
+      <MobileNav view={view} onView={setView} threshold={threshold} onThreshold={setThreshold} />
       <Sidebar view={view} onView={setView} threshold={threshold} onThreshold={setThreshold} />
-      <div className="min-w-0 flex-1 px-8 py-7">
+      <div className="min-w-0 flex-1 px-4 py-4 lg:px-8 lg:py-7">
         <TopBar
           updatedAt={output?.live?.fetched_at ?? null}
           busy={busy}
@@ -151,6 +154,18 @@ export default function App() {
           <p className="mb-4 rounded-xl border border-hairline bg-panel px-4 py-2 text-xs text-text-2">
             <span className="font-bold text-down">INPUT ERROR</span> {inputError}
           </p>
+        )}
+        {output !== null && (
+          <CityStrip
+            groups={groups}
+            cities={cities}
+            modelHighs={output.live?.model_highs}
+            selected={selected}
+            onSelect={(loc) => {
+              setSelectedCity(loc);
+              setView("dashboard");
+            }}
+          />
         )}
         {output === null && <DashboardSkeleton />}
         {output !== null && (

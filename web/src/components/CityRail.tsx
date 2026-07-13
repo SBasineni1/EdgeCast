@@ -39,7 +39,7 @@ export function CityRail({ groups, cities, modelHighs, selected, onSelect }: Cit
     .sort((a, b) => Math.abs(b.r.edge.value) - Math.abs(a.r.edge.value))
     .slice(0, 6);
   return (
-    <aside className="sticky top-0 flex h-screen w-72 shrink-0 flex-col gap-8 overflow-y-auto border-l border-hairline px-5 py-7">
+    <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col gap-8 overflow-y-auto border-l border-hairline px-5 py-7 xl:flex">
       <section>
         <p className="pb-3 text-xs font-medium text-text-3">Cities</p>
         <ul className="flex flex-col gap-2">
