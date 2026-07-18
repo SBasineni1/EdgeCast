@@ -12,7 +12,7 @@ from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from edgecast.blend.artifact import ArtifactStore
+from edgecast.blend.artifact import GBM_KIND, ArtifactStore
 from edgecast.edge import DEFAULT_EDGE_THRESHOLD
 from edgecast.grade import grade_days
 from edgecast.jsonio import ScenarioValidationError, build_output, read_scenarios_file
@@ -308,6 +308,25 @@ def create_app(
                     }
         except Exception:  # noqa: BLE001 - grading must never break the ladder
             out["model_grades"] = None
+        try:
+            art = (
+                artifact_store.latest_promoted(GBM_KIND, "day_ahead")
+                if artifact_store is not None else None
+            )
+            if art is None:
+                out["blend_model"] = None
+            else:
+                metrics = art.metrics or {}
+                out["blend_model"] = {
+                    "id": art.id,
+                    "promoted_at": art.created_at,
+                    "train_end_date": art.train_end_date,
+                    "n_rows": art.n_rows,
+                    "candidate_mae": metrics.get("candidate_mae"),
+                    "baseline_mae": metrics.get("baseline_mae"),
+                }
+        except Exception:  # noqa: BLE001 - provenance must never break the ladder
+            out["blend_model"] = None
         return out
 
     dist = web_dist if web_dist is not None else WEB_DIST

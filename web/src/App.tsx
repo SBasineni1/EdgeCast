@@ -191,9 +191,19 @@ export default function App() {
               </>
             )}
             {view === "verification" && (
-              <VerificationView verification={output.verification} snapshots={output.snapshots} />
+              <VerificationView
+                verification={output.verification}
+                snapshots={output.snapshots}
+                blendModel={output.blend_model}
+              />
             )}
-            {view === "skill" && <SkillView modelGrades={output.model_grades} cities={cities} />}
+            {view === "skill" && (
+              <SkillView
+                modelGrades={output.model_grades}
+                cities={cities}
+                blendModel={output.blend_model}
+              />
+            )}
           </div>
         )}
       </div>

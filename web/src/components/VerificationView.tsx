@@ -1,5 +1,5 @@
-import type { SnapshotsInfo, VerificationInfo } from "../types";
-import { formatDate, formatPercent, formatSigned } from "../format";
+import type { BlendModelInfo, SnapshotsInfo, VerificationInfo } from "../types";
+import { formatDate, formatPercent, formatSigned, formatTemperature } from "../format";
 
 function MetaStat({ label, value }: { label: string; value: string }) {
   return (
@@ -45,6 +45,48 @@ function VerificationHero({ verification, snapshots }: { verification: Verificat
         <MetaStat label="Markets" value={`${verification.n_markets}`} />
         <MetaStat label="Coverage" value={`${verification.n_days}/${verification.window_days}`} />
       </div>
+    </section>
+  );
+}
+
+function ActiveModelCard({ m }: { m: BlendModelInfo | null | undefined }) {
+  const validated = m != null && m.candidate_mae !== null && m.baseline_mae !== null;
+  return (
+    <section className="rounded-xl border border-hairline bg-panel p-5" data-testid="active-model">
+      <p className="pb-1 text-xs font-medium text-text-3">Active forecast model</p>
+      {m != null ? (
+        <>
+          <div className="flex items-baseline gap-2">
+            <span className="font-display text-lg font-medium">Learned blend</span>
+            <span className="data-nums text-xs text-text-3">gbm-v{m.id}</span>
+          </div>
+          <p className="data-nums pt-1 text-sm text-text-2">
+            Trained on {m.n_rows} market-days through {formatDate(m.train_end_date)} · promoted{" "}
+            {formatDate(m.promoted_at.slice(0, 10))}
+          </p>
+          {validated && (
+            <p className="data-nums pt-1 text-sm text-text-2" data-testid="active-model-validation">
+              Validation MAE <span className="font-medium text-text-1">{formatTemperature(m.candidate_mae!)}</span> vs{" "}
+              {formatTemperature(m.baseline_mae!)} equal-weight baseline
+            </p>
+          )}
+          <p className="pt-3 text-xs text-text-3">
+            Retrained nightly on all graded days; a new model goes live only when it beats both
+            this baseline and the previous model on days neither trained on.
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="font-display text-lg font-medium">Equal-weight blend</p>
+          <p className="pt-1 text-sm text-text-2">
+            Forecasts use the bias-corrected average of the three source models.
+          </p>
+          <p className="pt-3 text-xs text-text-3">
+            A learned model promotes automatically once it beats this baseline in walk-forward
+            validation.
+          </p>
+        </>
+      )}
     </section>
   );
 }
@@ -115,9 +157,10 @@ function SnapshotCard({ s }: { s: SnapshotsInfo }) {
 interface VerificationViewProps {
   verification: VerificationInfo | null | undefined;
   snapshots?: SnapshotsInfo | null;
+  blendModel?: BlendModelInfo | null;
 }
 
-export function VerificationView({ verification, snapshots }: VerificationViewProps) {
+export function VerificationView({ verification, snapshots, blendModel }: VerificationViewProps) {
   if (verification == null) {
     return (
       <p className="rounded-xl border border-hairline bg-panel p-5 text-sm text-text-3">
@@ -130,6 +173,7 @@ export function VerificationView({ verification, snapshots }: VerificationViewPr
   return (
     <div className="flex flex-col gap-6">
       <VerificationHero verification={verification} snapshots={snapshots} />
+      <ActiveModelCard m={blendModel} />
       {snapshots != null && <SnapshotCard s={snapshots} />}
       {coverage.length > 0 && (
         <section className="rounded-xl border border-hairline bg-panel p-5">

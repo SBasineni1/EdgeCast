@@ -98,3 +98,38 @@ it("null model grades show awaiting-backfill state", () => {
   render(<SkillView modelGrades={null} cities={{}} />);
   expect(screen.getByTestId("verdict")).toHaveTextContent("Awaiting model grades");
 });
+
+it("emphasizes the learned blend when a promoted model is live", () => {
+  const withGbm: ModelGrades = {
+    ...modelGrades,
+    overall: {
+      ...modelGrades.overall,
+      gbm: { n_days: 10, mae: 1.3, bias: 0.0, bucket_hit_rate: 0.5 },
+    },
+    by_city: {
+      NYC: {
+        consensus: { n_days: 28, mae: 1.4, bias: 0.2, bucket_hit_rate: 0.45 },
+        gbm: { n_days: 10, mae: 1.3, bias: 0.0, bucket_hit_rate: 0.5 },
+      },
+    },
+  };
+  const blendModel = {
+    id: 1,
+    promoted_at: "2026-07-18T09:00:00+00:00",
+    train_end_date: "2026-07-15",
+    n_rows: 786,
+    candidate_mae: 1.59,
+    baseline_mae: 1.65,
+  };
+  render(<SkillView modelGrades={withGbm} cities={cities} blendModel={blendModel} />);
+  expect(screen.getByTestId("verdict")).toHaveTextContent("Learned blend closest");
+  expect(screen.getByText("Learned blend MAE")).toBeInTheDocument();
+  expect(screen.getByText("Learned blend right bucket")).toBeInTheDocument();
+  expect(screen.getAllByText("50%").length).toBeGreaterThan(0);
+});
+
+it("keeps consensus emphasis when no learned model is promoted", () => {
+  render(<SkillView modelGrades={modelGrades} cities={cities} blendModel={null} />);
+  expect(screen.getByText("Consensus right bucket")).toBeInTheDocument();
+  expect(screen.queryByText("Learned blend MAE")).toBeNull();
+});

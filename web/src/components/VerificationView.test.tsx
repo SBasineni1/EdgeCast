@@ -86,3 +86,35 @@ it("omits the snapshot card without snapshot data", () => {
   render(<VerificationView verification={base} />);
   expect(screen.queryByTestId("snapshot-status")).toBeNull();
 });
+
+it("renders the active model card with learned-blend provenance", () => {
+  render(
+    <VerificationView
+      verification={base}
+      blendModel={{
+        id: 3,
+        promoted_at: "2026-07-18T09:00:00+00:00",
+        train_end_date: "2026-07-15",
+        n_rows: 786,
+        candidate_mae: 1.5,
+        baseline_mae: 1.7,
+      }}
+    />,
+  );
+  const card = screen.getByTestId("active-model");
+  expect(card).toHaveTextContent("Learned blend");
+  expect(card).toHaveTextContent("gbm-v3");
+  expect(card).toHaveTextContent("Trained on 786 market-days through Jul 15");
+  expect(card).toHaveTextContent("promoted Jul 18");
+  expect(screen.getByTestId("active-model-validation")).toHaveTextContent(
+    "Validation MAE 1.5° vs 1.7° equal-weight baseline",
+  );
+});
+
+it("shows the equal-weight fallback when no model is promoted", () => {
+  render(<VerificationView verification={base} blendModel={null} />);
+  const card = screen.getByTestId("active-model");
+  expect(card).toHaveTextContent("Equal-weight blend");
+  expect(card).toHaveTextContent(/promotes automatically/);
+  expect(screen.queryByTestId("active-model-validation")).toBeNull();
+});

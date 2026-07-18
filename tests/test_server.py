@@ -457,3 +457,27 @@ def test_live_snapshots_block(live_client):
     assert s["window_days"] == 30
     assert s["n_scored"] == 0
     assert s["days"] == []
+
+
+def test_live_blend_model_block(live_client, tmp_path):
+    from edgecast.blend.artifact import GBM_KIND, Artifact, ArtifactStore
+    from edgecast.blend.features import CITY_ORDER, FEATURE_NAMES
+
+    assert live_client.get("/api/live").json()["blend_model"] is None
+
+    ArtifactStore(tmp_path / "live.db").insert(Artifact(
+        kind=GBM_KIND, lead="day_ahead", created_at="2026-07-18T09:00:00+00:00",
+        train_end_date="2026-07-15", n_rows=786,
+        feature_names=FEATURE_NAMES, city_order=CITY_ORDER,
+        params={}, model_json={"tree_info": []},
+        metrics={"candidate_mae": 1.59, "baseline_mae": 1.65},
+        promoted=1,
+    ))
+    assert live_client.get("/api/live").json()["blend_model"] == {
+        "id": 1,
+        "promoted_at": "2026-07-18T09:00:00+00:00",
+        "train_end_date": "2026-07-15",
+        "n_rows": 786,
+        "candidate_mae": 1.59,
+        "baseline_mae": 1.65,
+    }

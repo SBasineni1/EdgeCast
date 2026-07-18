@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { CityInfo, ModelGrades, ModelGradeStats } from "../types";
+import type { BlendModelInfo, CityInfo, ModelGrades, ModelGradeStats } from "../types";
 import { MODEL_NAMES, MODEL_ORDER } from "../types";
 import { closestModel, formatPercent, formatTemperature, leanWords } from "../format";
 
@@ -27,8 +27,7 @@ function leanTone(bias: number): string {
   return bias > 0 ? "text-down" : "text-cool";
 }
 
-function GradeRow({ model, g }: { model: string; g: ModelGradeStats }) {
-  const emphasized = model === "consensus";
+function GradeRow({ model, g, emphasized }: { model: string; g: ModelGradeStats; emphasized: boolean }) {
   return (
     <div
       className={`${ROW_GRID} data-nums border-b border-hairline py-2 text-sm last:border-0 ${
@@ -50,9 +49,10 @@ function GradeRow({ model, g }: { model: string; g: ModelGradeStats }) {
 interface SkillViewProps {
   modelGrades: ModelGrades | null | undefined;
   cities: Record<string, CityInfo>;
+  blendModel?: BlendModelInfo | null;
 }
 
-export function SkillView({ modelGrades, cities }: SkillViewProps) {
+export function SkillView({ modelGrades, cities, blendModel }: SkillViewProps) {
   const cityKeys = Object.keys(modelGrades?.by_city ?? {}).sort((a, b) => a.localeCompare(b));
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
   if (modelGrades == null) {
@@ -64,7 +64,8 @@ export function SkillView({ modelGrades, cities }: SkillViewProps) {
   }
   const models = MODEL_ORDER.filter((m) => modelGrades.overall[m] !== undefined);
   const closest = closestModel(modelGrades);
-  const consensusHit = modelGrades.overall.consensus?.bucket_hit_rate ?? null;
+  const liveModel = blendModel != null && modelGrades.overall.gbm !== undefined ? "gbm" : "consensus";
+  const consensusHit = modelGrades.overall[liveModel]?.bucket_hit_rate ?? null;
   const verdict = closest === null ? "Models tied" : `${MODEL_NAMES[closest] ?? closest} closest`;
   const city =
     selectedCity !== null && cityKeys.includes(selectedCity) ? selectedCity : cityKeys[0];
@@ -74,12 +75,16 @@ export function SkillView({ modelGrades, cities }: SkillViewProps) {
       <p className="font-display text-lg font-medium" data-testid="verdict">
         {verdict} · day-ahead · last {modelGrades.window_days} days
       </p>
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+      <div
+        className={`grid grid-cols-2 gap-3 ${
+          models.length + (consensusHit !== null ? 1 : 0) > 5 ? "xl:grid-cols-6" : "xl:grid-cols-5"
+        }`}
+      >
         {models.map((m) => (
           <Stat key={m} label={`${MODEL_NAMES[m] ?? m} MAE`} value={formatTemperature(modelGrades.overall[m].mae)} />
         ))}
         {consensusHit !== null && (
-          <Stat label="Consensus right bucket" value={formatPercent(consensusHit)} />
+          <Stat label={`${MODEL_NAMES[liveModel]} right bucket`} value={formatPercent(consensusHit)} />
         )}
       </div>
       {city !== undefined && cityGrades !== undefined && (
@@ -107,7 +112,7 @@ export function SkillView({ modelGrades, cities }: SkillViewProps) {
           </div>
           <div data-testid="skill-city">
             {MODEL_ORDER.filter((m) => cityGrades[m] !== undefined).map((m) => (
-              <GradeRow key={m} model={m} g={cityGrades[m]} />
+              <GradeRow key={m} model={m} g={cityGrades[m]} emphasized={m === liveModel} />
             ))}
           </div>
         </section>

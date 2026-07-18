@@ -74,13 +74,23 @@ export interface ModelGrades {
 }
 
 export const MODEL_NAMES: Record<string, string> = {
+  gbm: "Learned blend",
   consensus: "Consensus",
   ncep_nbm_conus: "NBM",
   gfs_hrrr: "HRRR",
   gfs_global: "GFS",
 };
 
-export const MODEL_ORDER = ["consensus", "ncep_nbm_conus", "gfs_hrrr", "gfs_global"];
+export const MODEL_ORDER = ["gbm", "consensus", "ncep_nbm_conus", "gfs_hrrr", "gfs_global"];
+
+export interface BlendModelInfo {
+  id: number;
+  promoted_at: string;
+  train_end_date: string;
+  n_rows: number;
+  candidate_mae: number | null;
+  baseline_mae: number | null;
+}
 
 export interface SnapshotsInfo {
   window_days: number;
@@ -109,4 +119,5 @@ export interface AnalysisOutput {
   verification?: VerificationInfo | null;
   snapshots?: SnapshotsInfo | null;
   model_grades?: ModelGrades | null;
+  blend_model?: BlendModelInfo | null;
 }
