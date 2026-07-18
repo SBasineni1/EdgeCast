@@ -82,12 +82,6 @@ export const MODEL_NAMES: Record<string, string> = {
 
 export const MODEL_ORDER = ["consensus", "ncep_nbm_conus", "gfs_hrrr", "gfs_global"];
 
-export interface KalshiMismatch {
-  market_id: string;
-  kalshi_result: string;
-  edgecast_outcome: number;
-}
-
 export interface SnapshotsInfo {
   window_days: number;
   pending_event_date: string | null;
@@ -104,8 +98,6 @@ export interface VerificationInfo {
   n_markets: number;
   n_days: number;
   coverage?: { date: string; graded: boolean }[];
-  kalshi_mismatches: KalshiMismatch[];
-  verification_failed: { city: string; stage: string; reason: string }[];
 }
 
 export interface AnalysisOutput {

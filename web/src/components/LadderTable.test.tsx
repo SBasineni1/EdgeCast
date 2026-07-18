@@ -36,7 +36,7 @@ const results = [
 ];
 
 it("renders rows sorted ascending with range labels", () => {
-  render(<LadderTable results={results} consensus={null} mismatches={[]} />);
+  render(<LadderTable results={results} consensus={null} />);
   const rows = screen.getAllByTestId("ladder-row");
   expect(rows).toHaveLength(3);
   expect(rows[0]).toHaveTextContent("93° or below");
@@ -44,27 +44,29 @@ it("renders rows sorted ascending with range labels", () => {
   expect(rows[2]).toHaveTextContent("102° or above");
 });
 
-it("renders percentages and colored edge chips", () => {
-  render(<LadderTable results={results} consensus={null} mismatches={[]} />);
+it("renders quiet agreement values and colors only flagged edges", () => {
+  render(<LadderTable results={results} consensus={null} />);
   const rows = screen.getAllByTestId("ladder-row");
   expect(rows[1]).toHaveTextContent("85%");
   expect(rows[1]).toHaveTextContent("71%");
   const cells = screen.getAllByTestId("edge-cell");
   expect(cells[1].className).toContain("text-down");
-  expect(cells[1]).toHaveTextContent("▼ -0.14");
+  expect(cells[1]).toHaveTextContent("▼ −0.14");
   expect(cells[2].className).toContain("text-up");
   expect(cells[2]).toHaveTextContent("▲ +0.09");
-  expect(cells[0]).toHaveTextContent("—");
+  expect(cells[0]).toHaveTextContent("+0.02");
+  expect(cells[0].className).toContain("text-text-3");
+  expect(cells[1].className).not.toContain("rounded-full");
 });
 
 it("marks the ladder row containing the rounded consensus", () => {
-  render(<LadderTable results={results} consensus={96.2} mismatches={[]} />);
+  render(<LadderTable results={results} consensus={96.2} />);
   const marker = screen.getByTestId("consensus-marker");
   expect(marker.closest("[data-testid='ladder-row']")!.textContent).toContain("96–97°");
 });
 
 it("omits the marker without consensus", () => {
-  render(<LadderTable results={results} consensus={null} mismatches={[]} />);
+  render(<LadderTable results={results} consensus={null} />);
   expect(screen.queryByTestId("consensus-marker")).toBeNull();
 });
 
@@ -79,7 +81,7 @@ it("settled rows show outcome instead of edge", () => {
       brier_diff: -0.038,
     },
   };
-  render(<LadderTable results={[settled]} consensus={null} mismatches={[]} />);
+  render(<LadderTable results={[settled]} consensus={null} />);
   expect(screen.getAllByTestId("edge-cell")[0]).toHaveTextContent("YES ●");
 });
 
@@ -94,19 +96,6 @@ it("settled NO rows show outcome instead of edge", () => {
       brier_diff: 0.1,
     },
   };
-  render(<LadderTable results={[settled]} consensus={null} mismatches={[]} />);
+  render(<LadderTable results={[settled]} consensus={null} />);
   expect(screen.getAllByTestId("edge-cell")[0]).toHaveTextContent("NO");
-});
-
-it("renders red mismatch warnings", () => {
-  render(
-    <LadderTable
-      results={results}
-      consensus={null}
-      mismatches={[{ market_id: "X", kalshi_result: "yes", edgecast_outcome: 0 }]}
-    />,
-  );
-  const warn = screen.getByTestId("mismatch-warning");
-  expect(warn.className).toContain("text-down");
-  expect(warn).toHaveTextContent("KALSHI SETTLED YES — EDGECAST COMPUTES NO");
 });

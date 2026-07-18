@@ -12,6 +12,7 @@ from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from edgecast.blend.artifact import ArtifactStore
 from edgecast.edge import DEFAULT_EDGE_THRESHOLD
 from edgecast.grade import grade_days
 from edgecast.jsonio import ScenarioValidationError, build_output, read_scenarios_file
@@ -83,8 +84,12 @@ def _snapshot_daemon(db_path: str | Path) -> None:
                     model_store: ModelStore | None = ModelStore(db_path)
                 except Exception:  # noqa: BLE001
                     model_store = None
+                try:
+                    artifact_store: ArtifactStore | None = ArtifactStore(db_path)
+                except Exception:  # noqa: BLE001
+                    artifact_store = None
                 with httpx.Client() as kc, httpx.Client() as mc:
-                    live = build_live_scenarios(kc, mc, model_store)
+                    live = build_live_scenarios(kc, mc, model_store, artifact_store)
                     results, _ = analyze(live.scenarios)
                     capture_snapshot(
                         Store(db_path), results, live.model_highs, live.consensus_sigma
@@ -158,7 +163,13 @@ def create_app(
             model_store: ModelStore | None = ModelStore(db_path)
         except Exception:  # noqa: BLE001
             model_store = None
-        live = build_live_scenarios(kalshi_client, meteo_client, model_store)
+        try:
+            artifact_store: ArtifactStore | None = ArtifactStore(db_path)
+        except Exception:  # noqa: BLE001
+            artifact_store = None
+        live = build_live_scenarios(
+            kalshi_client, meteo_client, model_store, artifact_store
+        )
         results, _ = analyze(live.scenarios)
         n = capture_snapshot(store, results, live.model_highs, live.consensus_sigma)
         return {"captured": n, "event_date": due}
@@ -171,7 +182,13 @@ def create_app(
             model_store: ModelStore | None = ModelStore(db_path)
         except Exception:  # noqa: BLE001
             model_store = None
-        live = build_live_scenarios(kalshi_client, meteo_client, model_store)
+        try:
+            artifact_store: ArtifactStore | None = ArtifactStore(db_path)
+        except Exception:  # noqa: BLE001
+            artifact_store = None
+        live = build_live_scenarios(
+            kalshi_client, meteo_client, model_store, artifact_store
+        )
         if not live.cities_ok:
             reasons = "; ".join(f"{f['city']}: {f['reason']}" for f in live.cities_failed)
             raise HTTPException(status_code=502, detail=f"no live data available: {reasons}")
@@ -257,7 +274,10 @@ def create_app(
                     d for d in model_store.dates_missing("day_ahead", m_dates) if d not in g_dead
                 ][:3]
                 if m_missing and time.monotonic() >= app.state.topup_paused_until:
-                    g_report = grade_days(m_missing, model_store, kalshi_client, meteo_client)
+                    g_report = grade_days(
+                        m_missing, model_store, kalshi_client, meteo_client,
+                        artifact_store=artifact_store,
+                    )
                     if _had_429(g_report.failures):
                         app.state.topup_paused_until = (
                             time.monotonic() + RATE_LIMIT_COOLDOWN_SECONDS

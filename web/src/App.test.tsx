@@ -2,7 +2,12 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import App from "./App";
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  window.localStorage.clear();
+  delete document.documentElement.dataset.theme;
+  document.documentElement.style.colorScheme = "";
+});
 
 function fakeResponse(status: number, body: unknown) {
   return { ok: status >= 200 && status < 300, status, json: async () => body };
@@ -59,8 +64,6 @@ const LIVE_OUTPUT = {
     window_days: 30,
     n_markets: 214,
     n_days: 29,
-    kalshi_mismatches: [],
-    verification_failed: [],
   },
   model_grades: {
     window_days: 30,
@@ -111,6 +114,17 @@ it("switches city from the rail", async () => {
   expect(screen.getByTestId("ladder-chart")).toBeInTheDocument(); // 2 buckets -> chart renders
 });
 
+it("switches to night mode and remembers the preference", async () => {
+  document.documentElement.dataset.theme = "day";
+  stubLive(LIVE_OUTPUT);
+  render(<App />);
+  await screen.findAllByTestId("rail-city");
+  fireEvent.click(screen.getByRole("button", { name: "Switch to night mode" }));
+  expect(document.documentElement.dataset.theme).toBe("night");
+  expect(window.localStorage.getItem("edgecast-color-mode")).toBe("night");
+  expect(screen.getByRole("button", { name: "Switch to day mode" })).toBeInTheDocument();
+});
+
 it("falls back to the first city when the selected one disappears", async () => {
   stubLive(LIVE_OUTPUT);
   render(<App />);
@@ -132,7 +146,7 @@ it("switches views from the sidebar", async () => {
   render(<App />);
   await screen.findAllByTestId("rail-city");
   fireEvent.click(screen.getAllByRole("button", { name: /Verification/ })[0]);
-  expect(screen.getByTestId("no-mismatches")).toBeInTheDocument();
+  expect(screen.getByText("Markets")).toBeInTheDocument();
   fireEvent.click(screen.getAllByRole("button", { name: /Model Skill/ })[0]);
   expect(screen.getByTestId("verdict")).toHaveTextContent(
     "Consensus closest · day-ahead · last 30 days",

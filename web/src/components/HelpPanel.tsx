@@ -39,10 +39,6 @@ const FAQ: [string, string][] = [
     "The ladder row containing the rounded consensus forecast — the bucket the model would pick today.",
   ],
   [
-    "⚠︎ mismatch",
-    "Kalshi's settlement disagrees with what EdgeCast computes from the official observation. Rare — usually means the wrong station or a data correction; worth investigating.",
-  ],
-  [
     "Data",
     "Kalshi public market API · Open-Meteo (NBM, HRRR, GFS live + archived day-ahead runs) · NOAA/NWS ACIS official observations. The ladder refreshes every 60 seconds; model grading updates as days settle.",
   ],

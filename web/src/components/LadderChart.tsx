@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import type { ScenarioResult } from "../types";
-import { markedScenarioId, shortRangeLabel, sortKey } from "../format";
+import { formatPercent, markedScenarioId, shortRangeLabel, sortKey } from "../format";
 
 const W = 640;
 const H = 210;
@@ -62,16 +62,16 @@ export function LadderChart({ results, consensus }: LadderChartProps) {
   const markedIdx = sorted.findIndex((r) => r.scenario_id === markedId);
 
   return (
-    <section className="rounded-2xl border border-hairline bg-panel p-5 shadow-sm" data-anim="chart">
+    <section className="rounded-xl border border-hairline bg-panel p-5" data-anim="chart">
       <div className="flex items-center justify-between pb-4">
         <p className="text-xs font-medium text-text-3">Temperature Probabilities</p>
         <div className="flex items-center gap-4 text-xs text-text-2">
           <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-gold" aria-hidden="true" />
+            <span className="h-2 w-2 rounded-full bg-market" aria-hidden="true" />
             Market
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-lime" aria-hidden="true" />
+            <span className="h-2 w-2 rounded-full bg-model" aria-hidden="true" />
             Model
           </span>
         </div>
@@ -100,7 +100,7 @@ export function LadderChart({ results, consensus }: LadderChartProps) {
             x2={xAt(markedIdx, n)}
             y1={PAD_TOP}
             y2={H - PAD_BOTTOM}
-            stroke="#c9d2cb"
+            stroke="var(--color-chart-marker)"
             strokeDasharray="2 5"
             data-testid="chart-consensus-line"
           />
@@ -109,7 +109,7 @@ export function LadderChart({ results, consensus }: LadderChartProps) {
           ref={marketRef}
           d={marketD}
           fill="none"
-          stroke="var(--color-gold)"
+          stroke="var(--color-market)"
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -119,7 +119,7 @@ export function LadderChart({ results, consensus }: LadderChartProps) {
           ref={modelRef}
           d={modelD}
           fill="none"
-          stroke="var(--color-lime)"
+          stroke="var(--color-model)"
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -141,10 +141,10 @@ export function LadderChart({ results, consensus }: LadderChartProps) {
                   y={PAD_TOP}
                   height={H - PAD_TOP - PAD_BOTTOM}
                   rx={6}
-                  fill="rgba(0,0,0,0.04)"
+                  fill="var(--color-chart-hover)"
                 />
-                <circle cx={hx} cy={yAt(r.market_prob)} r={3.5} fill="var(--color-gold)" />
-                <circle cx={hx} cy={yAt(r.model_prob)} r={3.5} fill="var(--color-lime)" />
+                <circle cx={hx} cy={yAt(r.market_prob)} r={3.5} fill="var(--color-market)" />
+                <circle cx={hx} cy={yAt(r.model_prob)} r={3.5} fill="var(--color-model)" />
                 <g data-testid="chart-hover-tip">
                   <rect
                     x={tipX}
@@ -158,13 +158,13 @@ export function LadderChart({ results, consensus }: LadderChartProps) {
                   <text x={tipX + 12} y={PAD_TOP + 17} fontSize="10" fill="var(--color-text-3)">
                     {shortRangeLabel(r.market)}
                   </text>
-                  <circle cx={tipX + 15} cy={PAD_TOP + 32} r={3} fill="var(--color-gold)" />
+                  <circle cx={tipX + 15} cy={PAD_TOP + 32} r={3} fill="var(--color-market)" />
                   <text x={tipX + 24} y={PAD_TOP + 36} fontSize="11" fill="var(--color-text-1)">
-                    Market {Math.round(r.market_prob * 100)}%
+                    Market {formatPercent(r.market_prob)}
                   </text>
-                  <circle cx={tipX + 15} cy={PAD_TOP + 48} r={3} fill="var(--color-lime)" />
+                  <circle cx={tipX + 15} cy={PAD_TOP + 48} r={3} fill="var(--color-model)" />
                   <text x={tipX + 24} y={PAD_TOP + 52} fontSize="11" fill="var(--color-text-1)">
-                    Model {Math.round(r.model_prob * 100)}%
+                    Model {formatPercent(r.model_prob)}
                   </text>
                 </g>
               </g>

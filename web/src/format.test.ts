@@ -4,6 +4,9 @@ import {
   bucketContains,
   closestModel,
   formatDate,
+  formatPercent,
+  formatSigned,
+  formatTemperature,
   gradeLine,
   markedScenarioId,
   rangeLabel,
@@ -40,6 +43,14 @@ function result(id: string, m: MarketMeta): ScenarioResult {
 
 it("formats dates as MON DD", () => {
   expect(formatDate("2026-07-04")).toBe("Jul 04");
+});
+
+it("formats data values with consistent precision", () => {
+  expect(formatTemperature(91.84)).toBe("91.8°");
+  expect(formatSigned(0.087)).toBe("+0.09");
+  expect(formatSigned(-0.087)).toBe("−0.09");
+  expect(formatPercent(0.387)).toBe("39%");
+  expect(formatPercent(0.387, 1)).toBe("38.7%");
 });
 
 it("labels ranges long and short", () => {

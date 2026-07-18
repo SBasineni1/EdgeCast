@@ -242,7 +242,7 @@ def live_client(fixtures_dir, tmp_path, monkeypatch):
     )
     monkeypatch.setattr(
         server_mod, "grade_days",
-        lambda dates, ms, kc, mc: GradeReport(dates_attempted=list(dates)),
+        lambda dates, ms, kc, mc, **kwargs: GradeReport(dates_attempted=list(dates)),
     )
     db = tmp_path / "live.db"
     Store(db).upsert([seed_row()])
@@ -272,7 +272,7 @@ def graded_client(fixtures_dir, tmp_path, monkeypatch):
     )
     monkeypatch.setattr(
         server_mod, "grade_days",
-        lambda dates, ms, kc, mc: GradeReport(dates_attempted=list(dates)),
+        lambda dates, ms, kc, mc, **kwargs: GradeReport(dates_attempted=list(dates)),
     )
     app = create_app(fixtures_dir, web_dist=tmp_path / "no-dist", db_path=db)
     return TestClient(app)
@@ -312,7 +312,7 @@ def test_live_model_grades_null_on_empty_store(live_client, monkeypatch):
     monkeypatch.setattr(
         server_mod,
         "grade_days",
-        lambda dates, ms, kc, mc: GradeReport(dates_attempted=list(dates)),
+        lambda dates, ms, kc, mc, **kwargs: GradeReport(dates_attempted=list(dates)),
     )
     body = live_client.get("/api/live").json()
     assert body["model_grades"] is None
@@ -327,7 +327,7 @@ def test_live_verification_null_on_store_failure(fixtures_dir, tmp_path, monkeyp
     monkeypatch.setattr(
         server_mod,
         "grade_days",
-        lambda dates, ms, kc, mc: GradeReport(dates_attempted=list(dates)),
+        lambda dates, ms, kc, mc, **kwargs: GradeReport(dates_attempted=list(dates)),
     )
 
     class Boom:
@@ -362,7 +362,7 @@ def test_verification_topup_pauses_after_429(fixtures_dir, tmp_path, monkeypatch
     monkeypatch.setattr(server_mod, "run_verification", failing_verification)
     monkeypatch.setattr(
         server_mod, "grade_days",
-        lambda dates, ms, kc, mc: GradeReport(dates_attempted=list(dates)),
+        lambda dates, ms, kc, mc, **kwargs: GradeReport(dates_attempted=list(dates)),
     )
     db = tmp_path / "live.db"
     Store(db).upsert([seed_row()])
@@ -396,7 +396,7 @@ def test_verification_topup_keeps_running_on_non_429_failures(fixtures_dir, tmp_
     monkeypatch.setattr(server_mod, "run_verification", flaky_verification)
     monkeypatch.setattr(
         server_mod, "grade_days",
-        lambda dates, ms, kc, mc: GradeReport(dates_attempted=list(dates)),
+        lambda dates, ms, kc, mc, **kwargs: GradeReport(dates_attempted=list(dates)),
     )
     db = tmp_path / "live.db"
     Store(db).upsert([seed_row()])
@@ -431,7 +431,7 @@ def test_no_data_dates_are_not_retried(fixtures_dir, tmp_path, monkeypatch):
     monkeypatch.setattr(server_mod, "run_verification", no_data_verification)
     monkeypatch.setattr(
         server_mod, "grade_days",
-        lambda dates, ms, kc, mc: GradeReport(dates_attempted=list(dates)),
+        lambda dates, ms, kc, mc, **kwargs: GradeReport(dates_attempted=list(dates)),
     )
     db = tmp_path / "live.db"
     Store(db).upsert([seed_row()])

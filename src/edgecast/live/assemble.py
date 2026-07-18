@@ -6,7 +6,15 @@ from datetime import datetime, timezone
 
 import httpx
 
-from edgecast.consensus import consensus_point, consensus_sigma, trailing_bias
+from edgecast.blend.artifact import Artifact, ArtifactStore, GBM_KIND
+from edgecast.blend.features import FEATURE_NAMES, feature_vector
+from edgecast.blend.gbm import GBMModel, parse_model
+from edgecast.consensus import (
+    MIN_GRADED_DAYS,
+    consensus_point,
+    consensus_sigma,
+    trailing_bias,
+)
 from edgecast.live.cache import TTLCache
 from edgecast.live.kalshi import fetch_markets, to_quote
 from edgecast.live.previous_runs import SOURCE_MODELS, fetch_live_model_highs
@@ -16,8 +24,11 @@ from edgecast.types import NormalForecast, Scenario
 
 QUOTES_TTL = 30.0
 ENSEMBLES_TTL = 1800.0
+ARTIFACT_TTL = 3600.0
 QUOTES_CACHE = TTLCache()
 ENSEMBLES_CACHE = TTLCache()
+ARTIFACT_CACHE = TTLCache()
+_NO_ARTIFACT = object()
 
 
 @dataclass
@@ -59,12 +70,46 @@ def _calibration(
             m: trailing_bias(model_store.trailing_errors(m, "day_ahead", city, "9999-12-31"))
             for m in models
         }
-        sigma = consensus_sigma(
-            model_store.trailing_errors("consensus", "day_ahead", city, "9999-12-31")
+        gbm_errors = model_store.trailing_errors(
+            "gbm", "day_ahead", city, "9999-12-31"
         )
+        if len(gbm_errors) >= MIN_GRADED_DAYS:
+            sigma = consensus_sigma(gbm_errors)
+        else:
+            sigma = consensus_sigma(
+                model_store.trailing_errors(
+                    "consensus", "day_ahead", city, "9999-12-31"
+                )
+            )
         return biases, sigma
     except Exception:  # noqa: BLE001 - calibration must never break the ladder
         return {m: 0.0 for m in models}, consensus_sigma([])
+
+
+def _predictor(
+    artifact_store: ArtifactStore | None,
+) -> tuple[GBMModel, Artifact] | None:
+    if artifact_store is None:
+        return None
+
+    def fetch() -> tuple[GBMModel, Artifact] | object:
+        artifact = artifact_store.latest_promoted(GBM_KIND, "day_ahead")
+        if artifact is None:
+            return _NO_ARTIFACT
+        return parse_model(artifact.model_json), artifact
+
+    pair, _, _ = _cached(
+        ARTIFACT_CACHE, "gbm:day_ahead", ARTIFACT_TTL, fetch
+    )
+    if pair is None or pair is _NO_ARTIFACT:
+        return None
+    try:
+        model, artifact = pair
+        if tuple(artifact.feature_names) != FEATURE_NAMES:
+            return None
+        return model, artifact
+    except Exception:  # noqa: BLE001 - inference must never break the ladder
+        return None
 
 
 FETCH_WORKERS = 8  # cold caches mean up to 2 HTTP calls per city; fetch cities concurrently
@@ -97,8 +142,10 @@ def _fetch_city(series: str, st, kalshi_client: httpx.Client, meteo_client: http
 def build_live_scenarios(
     kalshi_client: httpx.Client, meteo_client: httpx.Client,
     model_store: ModelStore | None = None,
+    artifact_store: ArtifactStore | None = None,
 ) -> LiveResult:
     result = LiveResult(scenarios=[])
+    predictor = _predictor(artifact_store)
     max_q_age = 0
     max_e_age = 0
     with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
@@ -124,9 +171,21 @@ def build_live_scenarios(
             )
             continue
         biases, sigma = _calibration(model_store, st.city, list(available))
-        mu = consensus_point(available, biases)
+        baseline = consensus_point(available, biases)
+        mu = baseline
+        source = f"consensus({','.join(sorted(available))})"
+        if predictor is not None:
+            model, artifact = predictor
+            if st.city in artifact.city_order:
+                try:
+                    mu = baseline + model.predict(
+                        feature_vector(available, biases, st.city, event_date)
+                    )
+                    source = f"gbm-v{artifact.id}({','.join(sorted(available))})"
+                except Exception:  # noqa: BLE001 - inference must never break the ladder
+                    mu = baseline
         forecast = NormalForecast(
-            source=f"consensus({','.join(sorted(available))})",
+            source=source,
             issued_at=datetime.now(timezone.utc).isoformat(),
             mu=mu, sigma=sigma, n_models=len(available),
         )

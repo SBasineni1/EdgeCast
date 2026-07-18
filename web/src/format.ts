@@ -11,6 +11,18 @@ export function formatDate(isoDate: string): string {
   return `${MONTHS[(m ?? 1) - 1]} ${String(d ?? 1).padStart(2, "0")}`;
 }
 
+export function formatSigned(value: number, decimals = 2): string {
+  return `${value < 0 ? "−" : "+"}${Math.abs(value).toFixed(decimals)}`;
+}
+
+export function formatTemperature(value: number): string {
+  return `${value.toFixed(1)}°`;
+}
+
+export function formatPercent(rate: number, decimals = 0): string {
+  return `${(rate * 100).toFixed(decimals)}%`;
+}
+
 export function rangeLabel(market: MarketMeta): string {
   if (market.comparator === "between") return `${market.threshold_low}–${market.threshold_high}°`;
   if (market.comparator === ">=") return `${market.threshold}° or above`;

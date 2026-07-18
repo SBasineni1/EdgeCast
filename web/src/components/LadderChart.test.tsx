@@ -36,6 +36,8 @@ it("renders two lines, pills with end values, and bucket labels", () => {
   expect(screen.getByTestId("ladder-chart")).toBeInTheDocument();
   expect(screen.getByTestId("market-line")).toBeInTheDocument();
   expect(screen.getByTestId("model-line")).toBeInTheDocument();
+  expect(screen.getByTestId("market-line")).toHaveAttribute("stroke", "var(--color-market)");
+  expect(screen.getByTestId("model-line")).toHaveAttribute("stroke", "var(--color-model)");
   // legend names both series
   expect(screen.getByText("Market")).toBeInTheDocument();
   expect(screen.getByText("Model")).toBeInTheDocument();

@@ -1,15 +1,15 @@
 import { useState } from "react";
 import type { CityInfo, ModelGrades, ModelGradeStats } from "../types";
 import { MODEL_NAMES, MODEL_ORDER } from "../types";
-import { closestModel, leanWords } from "../format";
+import { closestModel, formatPercent, formatTemperature, leanWords } from "../format";
 
 const ROW_GRID = "grid grid-cols-[4.5rem_3rem_4.5rem_1fr] items-baseline gap-x-2 sm:grid-cols-[7rem_5rem_7rem_1fr] sm:gap-x-4";
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-hairline bg-panel p-4 shadow-sm">
+    <div className="rounded-xl border border-hairline bg-panel p-4">
       <div className="text-xs font-medium text-text-3">{label}</div>
-      <div className="pt-1 font-display text-3xl font-medium tabular-nums">{value}</div>
+      <div className="data-nums pt-1 text-3xl font-medium">{value}</div>
     </div>
   );
 }
@@ -31,14 +31,14 @@ function GradeRow({ model, g }: { model: string; g: ModelGradeStats }) {
   const emphasized = model === "consensus";
   return (
     <div
-      className={`${ROW_GRID} border-b border-hairline py-2 text-sm tabular-nums last:border-0 ${
+      className={`${ROW_GRID} data-nums border-b border-hairline py-2 text-sm last:border-0 ${
         emphasized ? "font-medium text-text-1" : "text-text-2"
       }`}
     >
       <span>{MODEL_NAMES[model] ?? model}</span>
-      <span>{g.mae.toFixed(1)}°</span>
+      <span>{formatTemperature(g.mae)}</span>
       <span className={bucketTone(g.bucket_hit_rate)} data-testid="bucket-cell">
-        {g.bucket_hit_rate === null ? "—" : `${Math.round(g.bucket_hit_rate * 100)}%`}
+        {g.bucket_hit_rate === null ? "—" : formatPercent(g.bucket_hit_rate)}
       </span>
       <span className={leanTone(g.bias)} data-testid="lean-cell">
         {leanWords(g.bias)}
@@ -57,7 +57,7 @@ export function SkillView({ modelGrades, cities }: SkillViewProps) {
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
   if (modelGrades == null) {
     return (
-      <p className="rounded-2xl border border-hairline bg-panel p-5 text-sm text-text-3 shadow-sm" data-testid="verdict">
+      <p className="rounded-xl border border-hairline bg-panel p-5 text-sm text-text-3" data-testid="verdict">
         Awaiting model grades — run: uv run edgecast backfill
       </p>
     );
@@ -76,14 +76,14 @@ export function SkillView({ modelGrades, cities }: SkillViewProps) {
       </p>
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
         {models.map((m) => (
-          <Stat key={m} label={`${MODEL_NAMES[m] ?? m} MAE`} value={`${modelGrades.overall[m].mae.toFixed(1)}°`} />
+          <Stat key={m} label={`${MODEL_NAMES[m] ?? m} MAE`} value={formatTemperature(modelGrades.overall[m].mae)} />
         ))}
         {consensusHit !== null && (
-          <Stat label="Consensus right bucket" value={`${Math.round(consensusHit * 100)}%`} />
+          <Stat label="Consensus right bucket" value={formatPercent(consensusHit)} />
         )}
       </div>
       {city !== undefined && cityGrades !== undefined && (
-        <section className="rounded-2xl border border-hairline bg-panel p-5 shadow-sm">
+        <section className="rounded-xl border border-hairline bg-panel p-5">
           <div className="flex items-center justify-between pb-3">
             <p className="text-xs font-medium text-text-3">By city</p>
             <select

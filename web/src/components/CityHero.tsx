@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import type { CityInfo, ScenarioResult } from "../types";
 import { MODEL_NAMES, MODEL_ORDER } from "../types";
-import { formatDate, rangeLabel } from "../format";
+import { formatDate, formatSigned, formatTemperature, rangeLabel } from "../format";
 
 const SOURCE_ORDER = MODEL_ORDER.filter((m) => m !== "consensus");
 
@@ -14,30 +14,16 @@ function biggestEdge(results: ScenarioResult[]): ScenarioResult | null {
 
 function DeltaChip({ delta }: { delta: number | null }) {
   if (delta === null) return null;
-  if (Math.abs(delta) < 0.05) {
-    return (
-      <span className="rounded-full bg-panel-2 px-1.5 py-0.5 text-[11px] tabular-nums text-text-3">
-        ±0.0°
-      </span>
-    );
-  }
-  const up = delta > 0;
   return (
-    <span
-      className={`rounded-full px-1.5 py-0.5 text-[11px] tabular-nums ${
-        up ? "bg-up/10 text-up" : "bg-down/10 text-down"
-      }`}
-      title={up ? "above consensus" : "below consensus"}
-    >
-      {up ? "▲ +" : "▼ −"}
-      {Math.abs(delta).toFixed(1)}°
+    <span className="data-nums text-[11px] text-text-3" title="difference from consensus">
+      {Math.abs(delta) < 0.05 ? "±0.0°" : `${formatSigned(delta, 1)}°`}
     </span>
   );
 }
 
 function StatCard({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-hairline bg-panel p-4 shadow-sm">
+    <div className="p-4">
       <p className="pb-2 text-xs font-medium text-text-3">{label}</p>
       {children}
     </div>
@@ -72,7 +58,7 @@ export function CityHero({
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? true;
     const from = parseFloat(el.textContent ?? "") || 0;
     if (reduce) {
-      el.textContent = `${consensus.toFixed(1)}°`;
+      el.textContent = formatTemperature(consensus);
       return;
     }
     const obj = { v: from };
@@ -81,7 +67,7 @@ export function CityHero({
       duration: 0.9,
       ease: "power2.out",
       onUpdate: () => {
-        el.textContent = `${obj.v.toFixed(1)}°`;
+        el.textContent = formatTemperature(obj.v);
       },
     });
     return () => {
@@ -105,19 +91,19 @@ export function CityHero({
           {eventDate ? formatDate(eventDate) : ""}
         </span>
       </div>
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid divide-y divide-hairline rounded-xl border border-hairline bg-panel sm:grid-cols-3 sm:divide-x sm:divide-y-0">
         <StatCard label="Mean High">
           <p className="flex items-baseline gap-3">
             <span
               ref={numRef}
               data-testid="hero-temp"
-              className="font-display text-4xl font-medium tabular-nums tracking-tight"
+              className="data-nums text-4xl font-medium tracking-tight"
             >
-              {consensus !== null ? `${consensus.toFixed(1)}°` : "—"}
+              {consensus !== null ? formatTemperature(consensus) : "—"}
             </span>
             {sigma != null && (
-              <span className="rounded-full bg-panel-2 px-2 py-0.5 text-[11px] tabular-nums text-text-2">
-                σ {sigma.toFixed(1)}°
+              <span className="data-nums rounded-full bg-panel-2 px-2 py-0.5 text-[11px] text-text-2">
+                σ {formatTemperature(sigma)}
               </span>
             )}
           </p>
@@ -126,7 +112,7 @@ export function CityHero({
           {big !== null ? (
             <p className="flex items-baseline gap-3" data-testid="hero-edge">
               <span
-                className={`font-display text-4xl font-medium tabular-nums tracking-tight ${
+                className={`data-nums text-4xl font-medium tracking-tight ${
                   bigUp ? "text-up" : "text-down"
                 }`}
               >
@@ -134,35 +120,33 @@ export function CityHero({
                 {Math.abs(big.edge.value).toFixed(2)}
               </span>
               <span
-                className={`rounded-full px-2 py-0.5 text-[11px] tabular-nums ${
-                  bigUp ? "bg-up/10 text-up" : "bg-down/10 text-down"
-                }`}
+                className="data-nums text-[11px] text-text-2"
               >
                 {bigUp ? "▲" : "▼"} {rangeLabel(big.market)}
               </span>
             </p>
           ) : (
-            <p className="font-display text-4xl font-medium tabular-nums tracking-tight text-text-3">—</p>
+            <p className="data-nums text-4xl font-medium tracking-tight text-text-3">—</p>
           )}
         </StatCard>
         <div
-          className="flex flex-col justify-center rounded-2xl border border-hairline bg-panel p-4 shadow-sm"
+          className="flex flex-col justify-center p-4"
           aria-label="model highs"
         >
           {modelRows.length > 0 ? (
             <div className="flex flex-col gap-1" data-testid="hero-models">
               {modelRows.map(({ model, value }) => (
-                <div key={model} className="flex items-baseline justify-between gap-2 text-sm tabular-nums">
+                <div key={model} className="data-nums flex items-baseline justify-between gap-2 text-sm">
                   <span className="text-text-3">{MODEL_NAMES[model] ?? model}</span>
                   <span className="flex items-baseline gap-2">
-                    <span className="font-medium">{value.toFixed(1)}°</span>
+                    <span className="font-medium">{formatTemperature(value)}</span>
                     <DeltaChip delta={consensus !== null ? value - consensus : null} />
                   </span>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="font-display text-4xl font-medium tabular-nums tracking-tight text-text-3">—</p>
+            <p className="data-nums text-4xl font-medium tracking-tight text-text-3">—</p>
           )}
         </div>
       </div>

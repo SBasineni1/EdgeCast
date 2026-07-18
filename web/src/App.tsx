@@ -13,6 +13,7 @@ import { DashboardSkeleton, RailSkeleton } from "./components/Skeleton";
 import { SkillView } from "./components/SkillView";
 import { TopBar } from "./components/TopBar";
 import { VerificationView } from "./components/VerificationView";
+import { applyColorMode, initialColorMode } from "./theme";
 
 const REFRESH_MS = 60_000;
 
@@ -36,9 +37,12 @@ export default function App() {
   const [upstreamError, setUpstreamError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [failedPolls, setFailedPolls] = useState(0);
+  const [colorMode, setColorMode] = useState(initialColorMode);
   const entered = useRef(false);
   const mainRef = useRef<HTMLDivElement>(null);
   const prevSelected = useRef<string | null>(null);
+
+  useEffect(() => applyColorMode(colorMode), [colorMode]);
 
   const runLive = useCallback(async (th: number) => {
     setBusy(true);
@@ -121,13 +125,6 @@ export default function App() {
   const consensus = highs?.consensus ?? null;
   const sigma = selected !== null ? output?.live?.consensus_sigma?.[selected] ?? null : null;
   const selectedInfo = selected !== null ? cities[selected] : undefined;
-  const mismatches =
-    selectedInfo !== undefined
-      ? output?.verification?.kalshi_mismatches?.filter((m) =>
-          m.market_id.startsWith(selectedInfo.series),
-        ) ?? []
-      : [];
-
   return (
     <main className="mx-auto flex min-h-screen max-w-[1480px] flex-col lg:flex-row">
       <MobileNav view={view} onView={setView} threshold={threshold} onThreshold={setThreshold} />
@@ -137,6 +134,8 @@ export default function App() {
           updatedAt={output?.live?.fetched_at ?? null}
           busy={busy}
           onRefresh={() => void runLive(threshold)}
+          colorMode={colorMode}
+          onColorMode={() => setColorMode((mode) => (mode === "day" ? "night" : "day"))}
         />
         {upstreamError !== null && (
           <p className="mb-4 rounded-xl border border-hairline bg-panel px-4 py-2 text-xs text-text-2" data-testid="upstream-strip">
@@ -188,7 +187,7 @@ export default function App() {
                   results={selectedResults}
                 />
                 <LadderChart results={selectedResults} consensus={consensus} />
-                <LadderTable results={selectedResults} consensus={consensus} mismatches={mismatches} />
+                <LadderTable results={selectedResults} consensus={consensus} />
               </>
             )}
             {view === "verification" && (

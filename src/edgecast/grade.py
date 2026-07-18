@@ -7,6 +7,9 @@ from datetime import date, datetime, timezone
 
 import httpx
 
+from edgecast.blend.artifact import ArtifactStore, GBM_KIND
+from edgecast.blend.features import FEATURE_NAMES, feature_vector
+from edgecast.blend.gbm import parse_model
 from edgecast.conditions import satisfies_market
 from edgecast.consensus import consensus_point, trailing_bias
 from edgecast.live.acis import AcisUnavailable, fetch_observed_highs
@@ -66,10 +69,19 @@ def _yes_quote(markets: list[dict], city: str) -> MarketQuote | None:
 
 
 def grade_days(
-    dates: list[str], model_store: ModelStore, kalshi_client, meteo_client
+    dates: list[str], model_store: ModelStore, kalshi_client, meteo_client,
+    artifact_store: ArtifactStore | None = None,
 ) -> GradeReport:
     report = GradeReport(dates_attempted=sorted(dates))
     now = datetime.now(timezone.utc).isoformat()
+    predictor = None
+    if artifact_store is not None:
+        try:
+            artifact = artifact_store.latest_promoted(GBM_KIND, LEAD)
+            if artifact is not None and tuple(artifact.feature_names) == FEATURE_NAMES:
+                predictor = parse_model(artifact.model_json), artifact
+        except Exception:  # noqa: BLE001 - blend grading is strictly additive
+            predictor = None
 
     for series, st in STATIONS.items():
         covered = model_store.covered("consensus", LEAD, list(dates))
@@ -146,6 +158,20 @@ def grade_days(
             }
             mu = consensus_point(model_preds, biases)
             rows.append(_row("consensus", mu, f"consensus({','.join(sorted(model_preds))})"))
+            if predictor is not None:
+                model, artifact = predictor
+                if artifact.train_end_date < d and st.city in artifact.city_order:
+                    try:
+                        resid = model.predict(feature_vector(model_preds, biases, st.city, d))
+                        rows.append(
+                            _row(
+                                "gbm",
+                                mu + resid,
+                                f"gbm-v{artifact.id}({','.join(sorted(model_preds))})",
+                            )
+                        )
+                    except Exception:  # noqa: BLE001 - skip only the additive GBM row
+                        pass
             model_store.upsert(rows)
             report.n_rows += len(rows)
     return report

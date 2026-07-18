@@ -59,7 +59,7 @@ export function Sidebar({ view, onView, threshold, onThreshold }: SidebarProps) 
   return (
     <aside className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col gap-8 overflow-y-auto border-r border-hairline bg-panel px-5 py-7 lg:flex">
       <span className="font-display text-lg tracking-tight" data-anim="sidebar-item">
-        <span className="font-bold">Edge</span>Cast<span className="text-lime">.</span>
+        <span className="font-bold">Edge</span>Cast<span className="text-accent">.</span>
       </span>
       <nav>
         <p className="pb-3 text-xs font-medium text-text-3" data-anim="sidebar-item">
@@ -72,7 +72,7 @@ export function Sidebar({ view, onView, threshold, onThreshold }: SidebarProps) 
                 onClick={() => onView(id)}
                 aria-current={view === id ? "page" : undefined}
                 className={`flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm transition-colors duration-150 ${
-                  view === id ? "bg-lime font-medium text-lime-ink" : "text-text-2 hover:bg-panel-2"
+                  view === id ? "bg-accent font-medium text-accent-ink" : "text-text-2 hover:bg-panel-2"
                 }`}
               >
                 {icon}
@@ -107,7 +107,7 @@ export function Sidebar({ view, onView, threshold, onThreshold }: SidebarProps) 
           >
             −
           </button>
-          <span className="text-sm tabular-nums">{threshold.toFixed(2)}</span>
+          <span className="data-nums text-sm">{threshold.toFixed(2)}</span>
           <button
             aria-label="increase threshold"
             onClick={() => step(0.01)}

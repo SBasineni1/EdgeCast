@@ -70,7 +70,7 @@ it("lists flagged edges sorted by magnitude and jumps on click", () => {
   );
   const edges = screen.getAllByTestId("top-edge");
   expect(edges).toHaveLength(2); // CHI's 0.02 is agreement — excluded
-  expect(edges[0]).toHaveTextContent("▼ -0.14");
+  expect(edges[0]).toHaveTextContent("▼ −0.14");
   expect(edges[1]).toHaveTextContent("▲ +0.09");
   fireEvent.click(edges[0]);
   expect(onSelect).toHaveBeenCalledWith("NYC");

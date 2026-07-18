@@ -27,7 +27,7 @@ export function MobileNav({ view, onView, threshold, onThreshold }: MobileNavPro
     >
       <div className="flex items-center justify-between gap-3">
         <span className="font-display text-lg tracking-tight">
-          <span className="font-bold">Edge</span>Cast<span className="text-lime">.</span>
+          <span className="font-bold">Edge</span>Cast<span className="text-accent">.</span>
         </span>
         <div className="flex items-center gap-2 text-sm">
           <span className="text-xs font-medium text-text-3">Flag ≥</span>
@@ -38,7 +38,7 @@ export function MobileNav({ view, onView, threshold, onThreshold }: MobileNavPro
           >
             −
           </button>
-          <span className="tabular-nums">{threshold.toFixed(2)}</span>
+          <span className="data-nums">{threshold.toFixed(2)}</span>
           <button
             aria-label="increase threshold"
             onClick={() => step(0.01)}
@@ -58,7 +58,7 @@ export function MobileNav({ view, onView, threshold, onThreshold }: MobileNavPro
               aria-current={active ? "page" : undefined}
               className={
                 active
-                  ? "rounded-full bg-lime px-3 py-1.5 text-sm font-medium text-lime-ink"
+                  ? "rounded-full bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink"
                   : "rounded-full px-3 py-1.5 text-sm text-text-2 hover:bg-panel-2"
               }
             >

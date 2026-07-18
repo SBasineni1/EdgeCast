@@ -24,22 +24,21 @@ it("lists per-model highs with deltas vs consensus", () => {
   const models = screen.getByTestId("hero-models");
   expect(models).toHaveTextContent("NBM");
   expect(models).toHaveTextContent("96.4°");
-  // NBM 96.4 vs consensus 96.2 -> above, green chip
-  expect(models).toHaveTextContent("▲ +0.2°");
+  expect(models).toHaveTextContent("+0.2°");
   expect(models).toHaveTextContent("HRRR");
-  expect(models).toHaveTextContent("▲ +1.8°");
+  expect(models).toHaveTextContent("+1.8°");
   expect(models).toHaveTextContent("GFS");
-  expect(models).toHaveTextContent("▲ +6.0°");
+  expect(models).toHaveTextContent("+6.0°");
 });
 
-it("shows a below-consensus model with a red down chip", () => {
+it("shows a below-consensus model as a neutral signed value", () => {
   render(
     <CityHero
       {...props}
       modelHighs={{ ncep_nbm_conus: 94.1, gfs_hrrr: null, gfs_global: null, consensus: 96.2 }}
     />,
   );
-  expect(screen.getByTestId("hero-models")).toHaveTextContent("▼ −2.1°");
+  expect(screen.getByTestId("hero-models")).toHaveTextContent("−2.1°");
 });
 
 it("shows an em dash without consensus", () => {

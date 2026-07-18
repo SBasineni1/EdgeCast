@@ -1,11 +1,12 @@
 import type { CityInfo, ScenarioResult } from "../types";
+import { formatSigned, formatTemperature } from "../format";
 
 function flagged(results: ScenarioResult[]): ScenarioResult[] {
   return results.filter((r) => r.settlement === null && r.edge.flag !== "agreement");
 }
 
 function biggestEdge(results: ScenarioResult[]): ScenarioResult | null {
-  const rows = flagged(results);
+  const rows = results.filter((r) => r.settlement === null);
   if (rows.length === 0) return null;
   return rows.reduce((a, b) => (Math.abs(b.edge.value) > Math.abs(a.edge.value) ? b : a));
 }
@@ -34,18 +35,27 @@ export function CityStrip({ groups, cities, modelHighs, selected, onSelect }: Ci
             className={
               "flex shrink-0 items-baseline gap-2 rounded-full border px-3.5 py-2 text-sm transition-colors duration-150 " +
               (active
-                ? "border-lime bg-panel ring-1 ring-lime/30"
+                ? "border-accent bg-panel ring-1 ring-accent/20"
                 : "border-hairline bg-panel")
             }
           >
             <span className="font-medium">{cities[loc]?.name ?? loc}</span>
-            <span className="font-display tabular-nums">
-              {consensus !== null ? `${consensus.toFixed(1)}°` : "—"}
+            <span className="data-nums">
+              {consensus !== null ? formatTemperature(consensus) : "—"}
             </span>
             {big !== null ? (
-              <span className={`tabular-nums ${big.edge.flag === "model_higher" ? "text-up" : "text-down"}`}>
-                {big.edge.flag === "model_higher" ? "▲ +" : "▼ "}
-                {big.edge.value.toFixed(2)}
+              <span
+                className={`data-nums ${
+                  big.edge.flag === "agreement"
+                    ? "text-text-3"
+                    : big.edge.flag === "model_higher"
+                      ? "font-medium text-up"
+                      : "font-medium text-down"
+                }`}
+              >
+                {big.edge.flag === "agreement"
+                  ? formatSigned(big.edge.value)
+                  : `${big.edge.flag === "model_higher" ? "▲ " : "▼ "}${formatSigned(big.edge.value)}`}
               </span>
             ) : (
               <span className="text-text-3">—</span>

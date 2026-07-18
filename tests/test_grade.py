@@ -1,6 +1,8 @@
 import pytest
 
 import edgecast.grade as grade_mod
+from edgecast.blend.artifact import Artifact, ArtifactStore, GBM_KIND
+from edgecast.blend.features import FEATURE_NAMES
 from edgecast.grade import GradeReport, bucket_hit, grade_days
 from edgecast.model_store import ModelStore
 from edgecast.types import MarketQuote
@@ -56,6 +58,7 @@ def test_grade_days_stores_sources_and_consensus_rows(monkeypatch, store):
     grades = store.overall_grades("day_ahead", "2026-07-01")
     assert grades["consensus"].bias == pytest.approx(1.0)   # mean(95,93,97)=95 vs 94
     assert grades["consensus"].bucket_hit_rate is None
+    assert "gbm" not in grades
 
 
 def test_consensus_subtracts_trailing_bias(monkeypatch, store):
@@ -114,3 +117,75 @@ def test_kalshi_fetch_does_not_retry_other_errors(monkeypatch):
     monkeypatch.setattr(grade_mod, "fetch_event_markets", broken)
     with pytest.raises(httpx.HTTPStatusError):
         grade_mod._fetch_markets_retrying("T", None)
+
+
+def _handwritten_dump():
+    return {
+        "max_feature_idx": 1,
+        "tree_info": [
+            {"tree_structure": {
+                "split_feature": 0, "threshold": 95.5, "decision_type": "<=",
+                "default_left": True, "missing_type": "NaN",
+                "left_child": {"leaf_value": 2.0},
+                "right_child": {"leaf_value": -1.0},
+            }},
+            {"tree_structure": {
+                "split_feature": 1, "threshold": 94.0, "decision_type": "<=",
+                "default_left": False, "missing_type": "None",
+                "left_child": {"leaf_value": 0.5},
+                "right_child": {"leaf_value": -0.5},
+            }},
+        ],
+    }
+
+
+def _artifact(train_end_date):
+    return Artifact(
+        kind=GBM_KIND, lead="day_ahead", created_at="2026-07-04T00:00:00Z",
+        train_end_date=train_end_date, n_rows=10,
+        feature_names=FEATURE_NAMES, city_order=("NYC",), params={},
+        model_json=_handwritten_dump(), metrics={}, promoted=1,
+    )
+
+
+def _single_day_sources(monkeypatch):
+    observed = {"KNYC": {"2026-07-01": 94.0}}
+    preds = {
+        "ncep_nbm_conus": {"2026-07-01": 95.0},
+        "gfs_hrrr": {"2026-07-01": 93.0},
+        "gfs_global": {"2026-07-01": 97.0},
+    }
+    _patch_sources(monkeypatch, observed, preds)
+
+
+def test_grade_days_adds_point_in_time_gbm_row(monkeypatch, store, tmp_path):
+    _single_day_sources(monkeypatch)
+    artifact_store = ArtifactStore(tmp_path / "artifacts.db")
+    artifact_store.insert(_artifact("2026-06-30"))
+
+    report = grade_days(
+        ["2026-07-01"], store, None, None, artifact_store=artifact_store
+    )
+
+    gbm_rows = store._select("model = ?", ("gbm",))
+    assert report.n_rows == 5
+    assert len(gbm_rows) == 1
+    # Consensus is 95.0; the two trees contribute 2.0 + 0.5.
+    assert gbm_rows[0].predicted_high == pytest.approx(97.5)
+    assert gbm_rows[0].model_source.startswith("gbm-v")
+
+
+@pytest.mark.parametrize("train_end_date", ["2026-07-01", "2026-07-02"])
+def test_grade_days_skips_gbm_row_at_or_before_train_end(
+    monkeypatch, store, tmp_path, train_end_date
+):
+    _single_day_sources(monkeypatch)
+    artifact_store = ArtifactStore(tmp_path / "artifacts.db")
+    artifact_store.insert(_artifact(train_end_date))
+
+    report = grade_days(
+        ["2026-07-01"], store, None, None, artifact_store=artifact_store
+    )
+
+    assert report.n_rows == 4
+    assert "gbm" not in store.overall_grades("day_ahead", "2026-07-01")

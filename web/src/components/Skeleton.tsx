@@ -6,7 +6,7 @@ function Block({ className }: { className: string }) {
 
 function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-hairline bg-panel p-4 shadow-sm">{children}</div>
+    <div className="rounded-xl border border-hairline bg-panel p-4">{children}</div>
   );
 }
 
