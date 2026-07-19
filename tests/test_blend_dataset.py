@@ -82,17 +82,24 @@ def test_bias_features_are_strictly_point_in_time(store):
     assert by_date[later_date].baseline_mu == pytest.approx(90.0 - 50.0 / 6.0)
 
 
-def test_consensus_mismatch_raises_with_city_and_date(store):
+def test_stored_consensus_mismatch_uses_recomputed_baseline(store):
+    # Production grades out of chronological order (backfills), so the stored
+    # consensus reflects grading-time trailing history that recomputation
+    # cannot reproduce. The recomputed baseline is the self-consistent truth
+    # for training; a mismatched stored value must not abort the build.
     d = "2026-07-10"
     store.upsert(
         [
-            row("gfs_hrrr", d, 80.0, 80.0),
-            row("consensus", d, 81.0, 80.0),
+            row("gfs_hrrr", d, 80.0, 79.0),
+            row("consensus", d, 85.0, 79.0),
         ]
     )
 
-    with pytest.raises(ValueError, match=f"NYC.*{d}"):
-        build_dataset(store)
+    rows = build_dataset(store)
+
+    assert len(rows) == 1
+    assert rows[0].baseline_mu == pytest.approx(80.0)
+    assert rows[0].label == pytest.approx(79.0 - 80.0)
 
 
 def test_missing_model_produces_nan_and_uses_available_prediction(store):

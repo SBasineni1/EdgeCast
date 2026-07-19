@@ -47,13 +47,12 @@ def build_dataset(
             )
             for model in preds
         }
+        # The stored consensus row reflects trailing history as of grading
+        # time; backfills grade out of chronological order, so it is not
+        # reproducible here. The recomputed baseline uses only event_date < D
+        # rows (point-in-time safe) and matches what inference computes from
+        # the same table state, so it is the value trained against.
         baseline_mu = consensus_point(preds, biases)
-        if abs(baseline_mu - consensus_row.predicted_high) >= 0.25:
-            raise ValueError(
-                f"consensus mismatch for {city} on {event_date}: "
-                f"recomputed {baseline_mu}, stored {consensus_row.predicted_high}"
-            )
-
         observed_high = consensus_row.observed_high
         result.append(
             TrainingRow(
