@@ -1,7 +1,15 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from edgecast.snapshot import ET, capture_snapshot, due_event_date, scorecard
+import pytest
+
+from edgecast.snapshot import (
+    ET,
+    capture_snapshot,
+    due_event_date,
+    edge_realization,
+    scorecard,
+)
 from edgecast.store import SnapshotRow, Store
 from edgecast.types import EdgeMetrics, MarketQuote, ScenarioResult
 
@@ -100,3 +108,42 @@ def test_scorecard_counts_unsettled_snapshots_as_pending(tmp_path):
     assert card.n_scored == 0
     assert card.n_pending == 1
     assert card.days == []
+
+
+def test_edge_realization_scores_frozen_disagreements(tmp_path):
+    store = Store(tmp_path / "s.db")
+    store.upsert_snapshots([
+        _snap("POS-RIGHT", 88, 89, 0.5, 0.8, event_date="2026-07-03"),
+        _snap("NEG-RIGHT", 90, 91, 0.6, 0.2, event_date="2026-07-03"),
+        _snap("POS-WRONG", 92, 93, 0.4, 0.7, event_date="2026-07-02"),
+        _snap("BELOW", 94, 95, 0.50, 0.53, event_date="2026-07-04"),
+        _snap("PENDING-NEW", 96, 97, 0.7, 0.4, event_date="2026-07-04"),
+        _snap("PENDING-BIG", 98, 99, 0.8, 0.2, event_date="2026-07-03"),
+        _snap("PENDING-SMALL", 100, 101, 0.5, 0.3, event_date="2026-07-03"),
+    ])
+    store.upsert([
+        seed_row(market_id="POS-RIGHT", outcome=1),
+        seed_row(market_id="NEG-RIGHT", outcome=0),
+        seed_row(market_id="POS-WRONG", outcome=0),
+        seed_row(market_id="BELOW", outcome=1),
+    ])
+
+    realization = edge_realization(store, "gfs_seamless", "2026-07-01", 0.1)
+
+    assert realization.n_settled == 3
+    assert realization.n_model_right == 2
+    assert realization.mean_brier_edge == pytest.approx((0.21 + 0.32 - 0.33) / 3)
+    assert [call.market_id for call in realization.settled] == [
+        "NEG-RIGHT", "POS-RIGHT", "POS-WRONG",
+    ]
+    assert [call.market_id for call in realization.pending] == [
+        "PENDING-NEW", "PENDING-BIG", "PENDING-SMALL",
+    ]
+    assert all(call.market_id != "BELOW" for call in realization.settled)
+    calls = {call.market_id: call for call in realization.settled}
+    assert calls["POS-RIGHT"].model_right is True
+    assert calls["NEG-RIGHT"].model_right is True
+    assert calls["POS-WRONG"].model_right is False
+    assert calls["POS-RIGHT"].brier_delta == pytest.approx(0.21)
+    assert all(call.outcome is None and call.model_right is None
+               and call.brier_delta is None for call in realization.pending)

@@ -110,6 +110,28 @@ export interface VerificationInfo {
   coverage?: { date: string; graded: boolean }[];
 }
 
+export interface EdgeCallInfo {
+  market_id: string;
+  city: string;
+  event_date: string;
+  question: string;
+  model_prob: number;
+  market_prob: number;
+  edge: number;
+  outcome: number | null;
+  model_right: boolean | null;
+  brier_delta: number | null;
+}
+
+export interface RealizationInfo {
+  threshold: number;
+  n_settled: number;
+  n_model_right: number;
+  mean_brier_edge: number | null;
+  settled: EdgeCallInfo[];
+  pending: EdgeCallInfo[];
+}
+
 export interface AnalysisOutput {
   schema_version: string;
   generated_at: string;
@@ -120,4 +142,5 @@ export interface AnalysisOutput {
   snapshots?: SnapshotsInfo | null;
   model_grades?: ModelGrades | null;
   blend_model?: BlendModelInfo | null;
+  realization?: RealizationInfo | null;
 }

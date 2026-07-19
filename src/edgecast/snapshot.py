@@ -16,6 +16,7 @@ from edgecast.types import ScenarioResult
 
 ET = ZoneInfo("America/New_York")
 SNAPSHOT_HOUR_ET = 11  # markets open 10 AM ET; give quotes an hour to settle
+EDGE_CALL_LIMIT = 40
 
 
 def due_event_date(now: datetime | None = None) -> str | None:
@@ -77,6 +78,29 @@ class SnapshotScorecard:
     days: list[dict] = field(default_factory=list)  # newest first
 
 
+@dataclass(frozen=True)
+class EdgeCall:
+    market_id: str
+    city: str
+    event_date: str
+    question: str
+    model_prob: float
+    market_prob: float
+    edge: float
+    outcome: int | None = None
+    model_right: bool | None = None
+    brier_delta: float | None = None
+
+
+@dataclass(frozen=True)
+class Realization:
+    n_settled: int = 0
+    n_model_right: int = 0
+    mean_brier_edge: float | None = None
+    settled: list[EdgeCall] = field(default_factory=list)
+    pending: list[EdgeCall] = field(default_factory=list)
+
+
 def scorecard(store: Store, model: str, since_date: str) -> SnapshotScorecard:
     """Score settled snapshots: top model/market bucket vs the settled bucket."""
     snaps = store.snapshots_since(since_date)
@@ -109,6 +133,68 @@ def scorecard(store: Store, model: str, since_date: str) -> SnapshotScorecard:
         day["market_hits"] += int(market_hit)
     card.days = sorted(by_day.values(), key=lambda d: d["event_date"], reverse=True)
     return card
+
+
+def edge_realization(
+    store: Store, model: str, since_date: str, threshold: float
+) -> Realization:
+    """Score frozen snapshot disagreements once their markets settle."""
+    snaps = store.snapshots_since(since_date)
+    outcomes = store.outcomes_for_markets(model, [s.market_id for s in snaps])
+    settled: list[EdgeCall] = []
+    pending: list[EdgeCall] = []
+    for s in snaps:
+        edge = s.model_prob - s.market_prob
+        if abs(edge) < threshold:
+            continue
+        call = EdgeCall(
+            market_id=s.market_id,
+            city=s.city,
+            event_date=s.event_date,
+            question=s.question,
+            model_prob=s.model_prob,
+            market_prob=s.market_prob,
+            edge=edge,
+        )
+        if s.market_id not in outcomes:
+            pending.append(call)
+            continue
+        outcome = outcomes[s.market_id]
+        settled.append(
+            EdgeCall(
+                market_id=call.market_id,
+                city=call.city,
+                event_date=call.event_date,
+                question=call.question,
+                model_prob=call.model_prob,
+                market_prob=call.market_prob,
+                edge=call.edge,
+                outcome=outcome,
+                model_right=(outcome == 1) == (edge > 0),
+                brier_delta=(s.market_prob - outcome) ** 2
+                - (s.model_prob - outcome) ** 2,
+            )
+        )
+    n_settled = len(settled)
+    n_model_right = sum(call.model_right is True for call in settled)
+    mean_brier_edge = (
+        sum(call.brier_delta for call in settled if call.brier_delta is not None)
+        / n_settled
+        if n_settled
+        else None
+    )
+    def sort_key(call: EdgeCall) -> tuple[str, float]:
+        return call.event_date, abs(call.edge)
+
+    settled.sort(key=sort_key, reverse=True)
+    pending.sort(key=sort_key, reverse=True)
+    return Realization(
+        n_settled=n_settled,
+        n_model_right=n_model_right,
+        mean_brier_edge=mean_brier_edge,
+        settled=settled[:EDGE_CALL_LIMIT],
+        pending=pending[:EDGE_CALL_LIMIT],
+    )
 
 
 def pick_label(group: list[SnapshotRow], key: str) -> str:

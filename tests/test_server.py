@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from edgecast.server import create_app
-from edgecast.store import Store, VerificationRow
+from edgecast.store import SnapshotRow, Store, VerificationRow
 
 SCENARIO = {
     "schema_version": "1.0",
@@ -338,6 +338,7 @@ def test_live_verification_null_on_store_failure(fixtures_dir, tmp_path, monkeyp
     app = create_app(fixtures_dir, web_dist=tmp_path / "no-dist", db_path=tmp_path / "x.db")
     out = TestClient(app).get("/api/live").json()
     assert out["verification"] is None
+    assert out["realization"] is None
 
 
 def test_verification_topup_pauses_after_429(fixtures_dir, tmp_path, monkeypatch):
@@ -457,6 +458,27 @@ def test_live_snapshots_block(live_client):
     assert s["window_days"] == 30
     assert s["n_scored"] == 0
     assert s["days"] == []
+
+
+def test_live_realization_block(live_client, tmp_path):
+    Store(tmp_path / "live.db").upsert_snapshots([
+        SnapshotRow(
+            market_id="M1", city="NYC", event_date="2026-07-02",
+            comparator="between", threshold=None, threshold_low=88.0,
+            threshold_high=89.0, question="q", market_prob=0.55,
+            model_prob=0.75, consensus=88.6, sigma=1.5,
+            taken_at="2026-07-01T11:02:00-04:00",
+        )
+    ])
+
+    realization = live_client.get("/api/live?edge_threshold=0.15").json()["realization"]
+
+    assert realization["threshold"] == 0.15
+    assert realization["n_settled"] == 1
+    assert realization["n_model_right"] == 1
+    assert realization["settled"][0]["market_id"] == "M1"
+    assert realization["settled"][0]["model_right"] is True
+    assert realization["settled"][0]["edge"] == 0.2
 
 
 def test_live_blend_model_block(live_client, tmp_path):

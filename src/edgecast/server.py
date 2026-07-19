@@ -20,7 +20,7 @@ from edgecast.live.assemble import build_live_scenarios
 from edgecast.live.stations import STATIONS
 from edgecast.model_store import ModelStore
 from edgecast.pipeline import analyze
-from edgecast.snapshot import capture_snapshot, due_event_date, scorecard
+from edgecast.snapshot import capture_snapshot, due_event_date, edge_realization, scorecard
 from edgecast.store import Store
 from edgecast.verify import verify_days as run_verification
 
@@ -257,9 +257,50 @@ def create_app(
                 "market_hits": card.market_hits,
                 "days": card.days,
             }
+            realization = edge_realization(store, model, since, edge_threshold)
+            out["realization"] = {
+                "threshold": edge_threshold,
+                "n_settled": realization.n_settled,
+                "n_model_right": realization.n_model_right,
+                "mean_brier_edge": round(realization.mean_brier_edge, 4)
+                if realization.mean_brier_edge is not None else None,
+                "settled": [
+                    {
+                        "market_id": call.market_id,
+                        "city": call.city,
+                        "event_date": call.event_date,
+                        "question": call.question,
+                        "model_prob": round(call.model_prob, 4),
+                        "market_prob": round(call.market_prob, 4),
+                        "edge": round(call.edge, 4),
+                        "outcome": call.outcome,
+                        "model_right": call.model_right,
+                        "brier_delta": round(call.brier_delta, 4)
+                        if call.brier_delta is not None else None,
+                    }
+                    for call in realization.settled
+                ],
+                "pending": [
+                    {
+                        "market_id": call.market_id,
+                        "city": call.city,
+                        "event_date": call.event_date,
+                        "question": call.question,
+                        "model_prob": round(call.model_prob, 4),
+                        "market_prob": round(call.market_prob, 4),
+                        "edge": round(call.edge, 4),
+                        "outcome": call.outcome,
+                        "model_right": call.model_right,
+                        "brier_delta": round(call.brier_delta, 4)
+                        if call.brier_delta is not None else None,
+                    }
+                    for call in realization.pending
+                ],
+            }
         except Exception as e:  # noqa: BLE001 - verification must never break the ladder
             out["verification"] = None
             out.setdefault("snapshots", None)
+            out.setdefault("realization", None)
             out["live"]["cities_failed"].append(
                 {"city": "*", "reason": f"verification store: {type(e).__name__}: {e}"}
             )

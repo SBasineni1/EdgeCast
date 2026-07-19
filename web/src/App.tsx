@@ -195,6 +195,7 @@ export default function App() {
                 verification={output.verification}
                 snapshots={output.snapshots}
                 blendModel={output.blend_model}
+                realization={output.realization}
               />
             )}
             {view === "skill" && (

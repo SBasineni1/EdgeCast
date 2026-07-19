@@ -118,3 +118,58 @@ it("shows the equal-weight fallback when no model is promoted", () => {
   expect(card).toHaveTextContent(/promotes automatically/);
   expect(screen.queryByTestId("active-model-validation")).toBeNull();
 });
+
+const call = (over: object) => ({
+  market_id: "M1",
+  city: "NYC",
+  event_date: "2026-07-17",
+  question: "Will the high in NYC be 88-89?",
+  model_prob: 0.62,
+  market_prob: 0.41,
+  edge: 0.21,
+  outcome: 1,
+  model_right: true,
+  brier_delta: 0.18,
+  ...over,
+});
+
+it("renders edge realization with settled verdicts and pending calls", () => {
+  render(
+    <VerificationView
+      verification={base}
+      realization={{
+        threshold: 0.05,
+        n_settled: 2,
+        n_model_right: 1,
+        mean_brier_edge: 0.041,
+        settled: [
+          call({}),
+          call({ market_id: "M2", edge: -0.11, model_prob: 0.2, market_prob: 0.31, outcome: 1, model_right: false }),
+        ],
+        pending: [call({ market_id: "M3", edge: 0.08, outcome: null, model_right: null, brier_delta: null })],
+      }}
+    />,
+  );
+  expect(screen.getByTestId("realization-score")).toHaveTextContent("Model right on 1 of 2 settled disagreements · 50%");
+  expect(screen.getAllByTestId("edge-call")).toHaveLength(2);
+  const verdicts = screen.getAllByTestId("edge-verdict");
+  expect(verdicts[0]).toHaveTextContent("Model ✓");
+  expect(verdicts[0]).toHaveClass("text-up");
+  expect(verdicts[1]).toHaveTextContent("Market ✓");
+  expect(verdicts[1]).toHaveClass("text-down");
+  expect(screen.getByText("Awaiting settlement")).toBeInTheDocument();
+  expect(screen.getAllByTestId("edge-call-pending")).toHaveLength(1);
+  expect(screen.getByText("+21.0 pp")).toBeInTheDocument();
+});
+
+it("shows the realization empty state and omits the card when null", () => {
+  const { rerender } = render(
+    <VerificationView
+      verification={base}
+      realization={{ threshold: 0.05, n_settled: 0, n_model_right: 0, mean_brier_edge: null, settled: [], pending: [] }}
+    />,
+  );
+  expect(screen.getByTestId("realization-empty")).toBeInTheDocument();
+  rerender(<VerificationView verification={base} realization={null} />);
+  expect(screen.queryByTestId("edge-realization")).toBeNull();
+});

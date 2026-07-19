@@ -1,4 +1,4 @@
-import type { BlendModelInfo, SnapshotsInfo, VerificationInfo } from "../types";
+import type { BlendModelInfo, EdgeCallInfo, RealizationInfo, SnapshotsInfo, VerificationInfo } from "../types";
 import { formatDate, formatPercent, formatSigned, formatTemperature } from "../format";
 
 function MetaStat({ label, value }: { label: string; value: string }) {
@@ -45,6 +45,80 @@ function VerificationHero({ verification, snapshots }: { verification: Verificat
         <MetaStat label="Markets" value={`${verification.n_markets}`} />
         <MetaStat label="Coverage" value={`${verification.n_days}/${verification.window_days}`} />
       </div>
+    </section>
+  );
+}
+
+function EdgeCallRow({ c }: { c: EdgeCallInfo }) {
+  const settled = c.outcome !== null;
+  const verdictTone = c.model_right === null ? "text-text-3" : c.model_right ? "text-up" : "text-down";
+  const verdict = c.model_right === null ? "open" : c.model_right ? "Model ✓" : "Market ✓";
+  return (
+    <div
+      className="flex items-baseline gap-3 border-b border-hairline py-2 text-sm last:border-0"
+      data-testid={settled ? "edge-call" : "edge-call-pending"}
+    >
+      <span className="data-nums shrink-0 text-text-3">{formatDate(c.event_date)}</span>
+      <span className="min-w-0 flex-1 truncate text-text-2" title={c.question}>
+        {c.city} · {c.question}
+      </span>
+      <span
+        className={`data-nums shrink-0 ${c.edge > 0 ? "text-up" : "text-down"}`}
+        title={`model ${formatPercent(c.model_prob)} vs market ${formatPercent(c.market_prob)}`}
+      >
+        {formatSigned(c.edge * 100, 1)} pp
+      </span>
+      {settled && (
+        <span className="data-nums shrink-0 text-xs text-text-3">
+          {c.outcome === 1 ? "YES" : "NO"}
+        </span>
+      )}
+      <span className={`data-nums w-16 shrink-0 text-right text-xs font-medium ${verdictTone}`} data-testid="edge-verdict">
+        {verdict}
+      </span>
+    </div>
+  );
+}
+
+function RealizationCard({ r }: { r: RealizationInfo }) {
+  const rate = r.n_settled > 0 ? r.n_model_right / r.n_settled : null;
+  const rateTone = rate === null ? "text-text-1" : rate > 0.5 ? "text-up" : rate < 0.5 ? "text-down" : "text-text-1";
+  return (
+    <section className="rounded-xl border border-hairline bg-panel p-5" data-testid="edge-realization">
+      <div className="flex items-baseline justify-between pb-1">
+        <p className="text-xs font-medium text-text-3">
+          Edge realization · disagreements ≥ {formatPercent(r.threshold)} at freeze
+        </p>
+        {r.mean_brier_edge !== null && (
+          <span className="data-nums text-xs text-text-3" title="mean Brier improvement over the market, per settled disagreement">
+            {formatSigned(r.mean_brier_edge, 3)} Brier
+          </span>
+        )}
+      </div>
+      {r.n_settled > 0 ? (
+        <p className="pt-1 text-sm text-text-2" data-testid="realization-score">
+          Model right on{" "}
+          <span className={`data-nums font-medium ${rateTone}`}>
+            {r.n_model_right} of {r.n_settled}
+          </span>{" "}
+          settled disagreements{rate !== null && <> · <span className={`data-nums ${rateTone}`}>{formatPercent(rate)}</span></>}
+        </p>
+      ) : (
+        <p className="pt-1 text-sm text-text-3" data-testid="realization-empty">
+          No settled disagreements yet — calls score once their frozen ladder settles.
+        </p>
+      )}
+      {r.settled.length > 0 && <div className="flex flex-col pt-3">{r.settled.map((c) => <EdgeCallRow key={c.market_id} c={c} />)}</div>}
+      {r.pending.length > 0 && (
+        <>
+          <p className="pt-4 text-xs font-medium text-text-3">Awaiting settlement</p>
+          <div className="flex flex-col pt-1">{r.pending.map((c) => <EdgeCallRow key={c.market_id} c={c} />)}</div>
+        </>
+      )}
+      <p className="pt-3 text-xs text-text-3">
+        A disagreement is scored from the probabilities frozen at 11 AM ET the day before —
+        whoever gave more probability to the settled outcome was right.
+      </p>
     </section>
   );
 }
@@ -158,9 +232,10 @@ interface VerificationViewProps {
   verification: VerificationInfo | null | undefined;
   snapshots?: SnapshotsInfo | null;
   blendModel?: BlendModelInfo | null;
+  realization?: RealizationInfo | null;
 }
 
-export function VerificationView({ verification, snapshots, blendModel }: VerificationViewProps) {
+export function VerificationView({ verification, snapshots, blendModel, realization }: VerificationViewProps) {
   if (verification == null) {
     return (
       <p className="rounded-xl border border-hairline bg-panel p-5 text-sm text-text-3">
@@ -173,6 +248,7 @@ export function VerificationView({ verification, snapshots, blendModel }: Verifi
   return (
     <div className="flex flex-col gap-6">
       <VerificationHero verification={verification} snapshots={snapshots} />
+      {realization != null && <RealizationCard r={realization} />}
       <ActiveModelCard m={blendModel} />
       {snapshots != null && <SnapshotCard s={snapshots} />}
       {coverage.length > 0 && (
