@@ -1,5 +1,6 @@
+import { useState } from "react";
 import type { BlendModelInfo, EdgeCallInfo, RealizationInfo, SnapshotsInfo, VerificationInfo } from "../types";
-import { formatDate, formatPercent, formatSigned, formatTemperature } from "../format";
+import { formatDate, formatPercent, formatSigned, formatTemperature, shortRangeLabel } from "../format";
 
 function MetaStat({ label, value }: { label: string; value: string }) {
   return (
@@ -55,34 +56,37 @@ function EdgeCallRow({ c }: { c: EdgeCallInfo }) {
   const verdict = c.model_right === null ? "open" : c.model_right ? "Model ✓" : "Market ✓";
   return (
     <div
-      className="flex items-baseline gap-3 border-b border-hairline py-2 text-sm last:border-0"
+      className="data-nums flex items-baseline gap-2 border-b border-hairline py-1.5 text-sm last:border-0"
       data-testid={settled ? "edge-call" : "edge-call-pending"}
     >
-      <span className="data-nums shrink-0 text-text-3">{formatDate(c.event_date)}</span>
+      <span className="shrink-0 text-xs text-text-3">{formatDate(c.event_date)}</span>
       <span className="min-w-0 flex-1 truncate text-text-2" title={c.question}>
-        {c.city} · {c.question}
+        {c.city} <span className="text-text-1">{shortRangeLabel(c)}°</span>
       </span>
       <span
-        className={`data-nums shrink-0 ${c.edge > 0 ? "text-up" : "text-down"}`}
+        className={`shrink-0 ${c.edge > 0 ? "text-up" : "text-down"}`}
         title={`model ${formatPercent(c.model_prob)} vs market ${formatPercent(c.market_prob)}`}
       >
         {formatSigned(c.edge * 100, 1)} pp
       </span>
-      {settled && (
-        <span className="data-nums shrink-0 text-xs text-text-3">
-          {c.outcome === 1 ? "YES" : "NO"}
-        </span>
-      )}
-      <span className={`data-nums w-16 shrink-0 text-right text-xs font-medium ${verdictTone}`} data-testid="edge-verdict">
+      <span className="w-8 shrink-0 text-right text-xs text-text-3">
+        {settled ? (c.outcome === 1 ? "YES" : "NO") : ""}
+      </span>
+      <span className={`w-16 shrink-0 text-right text-xs font-medium ${verdictTone}`} data-testid="edge-verdict">
         {verdict}
       </span>
     </div>
   );
 }
 
+const REALIZATION_PREVIEW_ROWS = 14;
+
 function RealizationCard({ r }: { r: RealizationInfo }) {
+  const [expanded, setExpanded] = useState(false);
   const rate = r.n_settled > 0 ? r.n_model_right / r.n_settled : null;
   const rateTone = rate === null ? "text-text-1" : rate > 0.5 ? "text-up" : rate < 0.5 ? "text-down" : "text-text-1";
+  const settled = expanded ? r.settled : r.settled.slice(0, REALIZATION_PREVIEW_ROWS);
+  const hidden = r.settled.length - settled.length;
   return (
     <section className="rounded-xl border border-hairline bg-panel p-5" data-testid="edge-realization">
       <div className="flex items-baseline justify-between pb-1">
@@ -108,11 +112,27 @@ function RealizationCard({ r }: { r: RealizationInfo }) {
           No settled disagreements yet — calls score once their frozen ladder settles.
         </p>
       )}
-      {r.settled.length > 0 && <div className="flex flex-col pt-3">{r.settled.map((c) => <EdgeCallRow key={c.market_id} c={c} />)}</div>}
+      {settled.length > 0 && (
+        <div className="grid pt-3 sm:grid-cols-2 sm:gap-x-8">
+          {settled.map((c) => <EdgeCallRow key={c.market_id} c={c} />)}
+        </div>
+      )}
+      {(hidden > 0 || expanded) && (
+        <button
+          type="button"
+          className="cursor-pointer pt-2 text-xs font-medium text-text-3 hover:text-text-1"
+          onClick={() => setExpanded(!expanded)}
+          data-testid="realization-toggle"
+        >
+          {expanded ? "Show fewer" : `Show all ${r.settled.length} settled calls`}
+        </button>
+      )}
       {r.pending.length > 0 && (
         <>
           <p className="pt-4 text-xs font-medium text-text-3">Awaiting settlement</p>
-          <div className="flex flex-col pt-1">{r.pending.map((c) => <EdgeCallRow key={c.market_id} c={c} />)}</div>
+          <div className="grid pt-1 sm:grid-cols-2 sm:gap-x-8">
+            {r.pending.map((c) => <EdgeCallRow key={c.market_id} c={c} />)}
+          </div>
         </>
       )}
       <p className="pt-3 text-xs text-text-3">

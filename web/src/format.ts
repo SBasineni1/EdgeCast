@@ -31,7 +31,12 @@ export function rangeLabel(market: MarketMeta): string {
   return `below ${market.threshold}°`;
 }
 
-export function shortRangeLabel(market: MarketMeta): string {
+export function shortRangeLabel(market: {
+  comparator: string;
+  threshold?: number | null;
+  threshold_low?: number | null;
+  threshold_high?: number | null;
+}): string {
   if (market.comparator === "between") return `${market.threshold_low}–${market.threshold_high}`;
   if (market.comparator === ">=") return `≥${market.threshold}`;
   if (market.comparator === "<=") return `≤${market.threshold}`;

@@ -7,7 +7,7 @@ model gave the highest probability to — more than 24 hours ahead — was the o
 that settled YES, with the market's 11 AM favorite as the baseline.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -84,6 +84,10 @@ class EdgeCall:
     city: str
     event_date: str
     question: str
+    comparator: str
+    threshold: float | None
+    threshold_low: float | None
+    threshold_high: float | None
     model_prob: float
     market_prob: float
     edge: float
@@ -152,6 +156,10 @@ def edge_realization(
             city=s.city,
             event_date=s.event_date,
             question=s.question,
+            comparator=s.comparator,
+            threshold=s.threshold,
+            threshold_low=s.threshold_low,
+            threshold_high=s.threshold_high,
             model_prob=s.model_prob,
             market_prob=s.market_prob,
             edge=edge,
@@ -161,14 +169,8 @@ def edge_realization(
             continue
         outcome = outcomes[s.market_id]
         settled.append(
-            EdgeCall(
-                market_id=call.market_id,
-                city=call.city,
-                event_date=call.event_date,
-                question=call.question,
-                model_prob=call.model_prob,
-                market_prob=call.market_prob,
-                edge=call.edge,
+            replace(
+                call,
                 outcome=outcome,
                 model_right=(outcome == 1) == (edge > 0),
                 brier_delta=(s.market_prob - outcome) ** 2

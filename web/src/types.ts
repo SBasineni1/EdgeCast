@@ -115,6 +115,10 @@ export interface EdgeCallInfo {
   city: string;
   event_date: string;
   question: string;
+  comparator: string;
+  threshold: number | null;
+  threshold_low: number | null;
+  threshold_high: number | null;
   model_prob: number;
   market_prob: number;
   edge: number;

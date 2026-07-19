@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it } from "vitest";
 import { VerificationView } from "./VerificationView";
 
@@ -124,6 +124,10 @@ const call = (over: object) => ({
   city: "NYC",
   event_date: "2026-07-17",
   question: "Will the high in NYC be 88-89?",
+  comparator: "between",
+  threshold: null,
+  threshold_low: 88,
+  threshold_high: 89,
   model_prob: 0.62,
   market_prob: 0.41,
   edge: 0.21,
@@ -172,4 +176,23 @@ it("shows the realization empty state and omits the card when null", () => {
   expect(screen.getByTestId("realization-empty")).toBeInTheDocument();
   rerender(<VerificationView verification={base} realization={null} />);
   expect(screen.queryByTestId("edge-realization")).toBeNull();
+});
+
+it("renders compact bucket labels and collapses long settled lists", () => {
+  const settled = Array.from({ length: 20 }, (_, i) =>
+    call({ market_id: `S${i}`, edge: 0.06 + i / 100 }),
+  );
+  render(
+    <VerificationView
+      verification={base}
+      realization={{ threshold: 0.05, n_settled: 20, n_model_right: 12, mean_brier_edge: 0.02, settled, pending: [] }}
+    />,
+  );
+  expect(screen.getAllByText("88–89°").length).toBeGreaterThan(0);
+  expect(screen.getAllByTestId("edge-call")).toHaveLength(14);
+  const toggle = screen.getByTestId("realization-toggle");
+  expect(toggle).toHaveTextContent("Show all 20 settled calls");
+  fireEvent.click(toggle);
+  expect(screen.getAllByTestId("edge-call")).toHaveLength(20);
+  expect(toggle).toHaveTextContent("Show fewer");
 });
