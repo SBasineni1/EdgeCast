@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import gsap from "gsap";
 import { analyzeLive, InputError, UpstreamError } from "./api";
 import type { AnalysisOutput, ScenarioResult } from "./types";
@@ -126,7 +127,9 @@ export default function App() {
   const sigma = selected !== null ? output?.live?.consensus_sigma?.[selected] ?? null : null;
   const selectedInfo = selected !== null ? cities[selected] : undefined;
   return (
-    <main className="mx-auto flex min-h-screen max-w-[1480px] flex-col lg:flex-row">
+    <>
+      <Analytics />
+      <main className="mx-auto flex min-h-screen max-w-[1480px] flex-col lg:flex-row">
       <MobileNav view={view} onView={setView} threshold={threshold} onThreshold={setThreshold} />
       <Sidebar view={view} onView={setView} threshold={threshold} onThreshold={setThreshold} />
       <div className="min-w-0 flex-1 px-4 py-4 lg:px-8 lg:py-7">
@@ -222,5 +225,6 @@ export default function App() {
         />
       )}
     </main>
+    </>
   );
 }
