@@ -146,3 +146,84 @@ def to_quote(market: dict, city: str) -> MarketQuote | None:
     if strike is None:
         return None
     return MarketQuote(comparator=comparator, threshold=float(strike), **common)
+
+
+def fetch_series_markets(
+    series_ticker: str, client: httpx.Client, historical: bool = False,
+    status: str | None = None,
+) -> list[dict]:
+    """Every market in a series, paged. The series listing also returns markets
+    from before the KX rename (e.g. HIGHNY-24FEB01 under KXHIGHNY).
+
+    historical=True reads markets Kalshi archived (settled before its cutoff).
+    """
+    path = "/historical/markets" if historical else "/markets"
+    markets: list[dict] = []
+    cursor: str | None = None
+    while True:
+        params: dict = {"series_ticker": series_ticker, "limit": 1000}
+        if status:
+            params["status"] = status
+        if cursor:
+            params["cursor"] = cursor
+        resp = client.get(f"{BASE_URL}{path}", params=params, timeout=30.0)
+        resp.raise_for_status()
+        data = resp.json()
+        page = data.get("markets", [])
+        markets.extend(page)
+        cursor = data.get("cursor")
+        if not cursor or not page:
+            return markets
+
+
+def fetch_hourly_candles(
+    series_ticker: str, ticker: str, start_ts: int, end_ts: int,
+    client: httpx.Client, historical: bool = False,
+) -> list[dict]:
+    """Hourly candlesticks ending in [start_ts, end_ts] (Unix seconds)."""
+    if historical:
+        url = f"{BASE_URL}/historical/markets/{ticker}/candlesticks"
+    else:
+        url = f"{BASE_URL}/series/{series_ticker}/markets/{ticker}/candlesticks"
+    resp = client.get(
+        url,
+        params={"start_ts": start_ts, "end_ts": end_ts, "period_interval": 60},
+        timeout=30.0,
+    )
+    resp.raise_for_status()
+    return resp.json().get("candlesticks", [])
+
+
+def _candle_dollars(side: dict | None, name: str) -> float | None:
+    # Historical candles use "close"; live candles use "close_dollars".
+    if not side:
+        return None
+    return _float(side.get(name, side.get(f"{name}_dollars")))
+
+
+def quote_at(candles: list[dict], at_ts: int) -> dict | None:
+    """The standing quote at `at_ts`: close of the last candle ending at or before it.
+
+    Kalshi omits hours in which nothing changed (each returned candle opens at
+    the previous one's close), so the last earlier close is still the quote.
+    None when no candle ends by `at_ts`.
+    """
+    prior = [c for c in candles if c.get("end_period_ts", at_ts + 1) <= at_ts]
+    if not prior:
+        return None
+    last = max(prior, key=lambda c: c["end_period_ts"])
+    volume = sum(_float(c.get("volume", c.get("volume_fp"))) or 0.0 for c in prior)
+    return {
+        "as_of_ts": last["end_period_ts"],
+        "yes_bid": _candle_dollars(last.get("yes_bid"), "close"),
+        "yes_ask": _candle_dollars(last.get("yes_ask"), "close"),
+        "last_price": _candle_dollars(last.get("price"), "close"),
+        "volume": volume,
+    }
+
+
+def fetch_historical_cutoff(client: httpx.Client) -> str:
+    """ISO time before which settled markets live only under /historical."""
+    resp = client.get(f"{BASE_URL}/historical/cutoff", timeout=TIMEOUT)
+    resp.raise_for_status()
+    return resp.json()["market_settled_ts"]

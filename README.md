@@ -58,6 +58,7 @@ guide to every number on screen.
 ```
 edgecast serve     [--port 8000] [--db data/edgecast.db] [--verify-days 30]
 edgecast backfill  [--days 30]   [--db data/edgecast.db]
+edgecast history   --start 2024-02-01 | --days N  [--end DATE] [--steps forecasts,markets,grades]
 edgecast analyze   scenarios.json [--edge-threshold 0.05]   # offline pipeline on a scenarios file
 ```
 

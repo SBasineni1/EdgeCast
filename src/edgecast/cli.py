@@ -57,6 +57,20 @@ def _build_parser() -> argparse.ArgumentParser:
         "--force", action="store_true",
         help="capture even before 11 AM ET (records the actual capture time)",
     )
+    p_history = sub.add_parser(
+        "history",
+        help="multi-year backfill: archived forecasts, settled Kalshi markets "
+        "with pre-settlement quotes, and model grading",
+    )
+    span = p_history.add_mutually_exclusive_group(required=True)
+    span.add_argument("--start", help="first event date (YYYY-MM-DD)")
+    span.add_argument("--days", type=int, help="the last N days ending yesterday")
+    p_history.add_argument("--end", help="last event date (default: yesterday)")
+    p_history.add_argument("--db", default="data/edgecast.db")
+    p_history.add_argument(
+        "--steps", default="forecasts,markets,grades",
+        help="comma-separated subset of forecasts,markets,grades",
+    )
     return parser
 
 
@@ -68,6 +82,8 @@ def main(argv: list[str] | None = None) -> int:
         return _backfill(args)
     if args.command == "snapshot":
         return _snapshot(args)
+    if args.command == "history":
+        return _history(args)
     return _analyze(args)
 
 
@@ -124,6 +140,42 @@ def _backfill(args) -> int:
         or (not report.failures and not model_report.failures)
     )
     return 0 if ok else 1
+
+
+def _history(args) -> int:
+    from collections import Counter
+    from datetime import date, timedelta
+
+    import httpx
+
+    from edgecast.history import run_history_backfill
+
+    steps = {s.strip() for s in args.steps.split(",") if s.strip()}
+    unknown = steps - {"forecasts", "markets", "grades"}
+    if unknown or not steps:
+        print(f"error: unknown steps {sorted(unknown)}", file=sys.stderr)
+        return 2
+    yesterday = date.today() - timedelta(days=1)
+    end = args.end or yesterday.isoformat()
+    start = args.start or (yesterday - timedelta(days=args.days - 1)).isoformat()
+    if start > end:
+        print(f"error: start {start} is after end {end}", file=sys.stderr)
+        return 2
+    with httpx.Client() as kc, httpx.Client() as mc:
+        report = run_history_backfill(args.db, start, end, steps, kc, mc)
+    print(
+        f"history {start}..{end}: {report.forecast_rows} forecast rows, "
+        f"{report.markets} markets, {report.quotes} quotes "
+        f"({report.quotes_missing} with no quote by the target time), "
+        f"{report.graded_rows} graded rows, {len(report.failures)} failures"
+    )
+    by_step = Counter(f["step"] for f in report.failures)
+    for step, n in sorted(by_step.items()):
+        print(f"  {step}: {n} failures")
+    for f in [f for f in report.failures if f["step"] != "grading"][:20]:
+        print(f"  failed {f['step']} {f['city']} {f['dates']}: {f['reason']}")
+    progressed = report.forecast_rows or report.markets or report.graded_rows
+    return 0 if progressed or not report.failures else 1
 
 
 def _snapshot(args) -> int:

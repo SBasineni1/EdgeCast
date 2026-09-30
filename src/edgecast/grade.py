@@ -2,6 +2,7 @@
 
 import math
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 
@@ -71,7 +72,14 @@ def _yes_quote(markets: list[dict], city: str) -> MarketQuote | None:
 def grade_days(
     dates: list[str], model_store: ModelStore, kalshi_client, meteo_client,
     artifact_store: ArtifactStore | None = None,
+    markets_for: Callable[[str, str], list[dict]] | None = None,
 ) -> GradeReport:
+    """Grade day-ahead forecasts for `dates`.
+
+    `markets_for(series, date)` supplies the day's Kalshi markets; by default
+    they are fetched live per day. Bulk backfills pass a lookup built from the
+    series listing instead.
+    """
     report = GradeReport(dates_attempted=sorted(dates))
     now = datetime.now(timezone.utc).isoformat()
     predictor = None
@@ -127,9 +135,12 @@ def grade_days(
                 continue
             yes_q: MarketQuote | None = None
             try:
-                markets = _fetch_markets_retrying(
-                    event_ticker_for(series, date.fromisoformat(d)), kalshi_client
-                )
+                if markets_for is not None:
+                    markets = markets_for(series, d)
+                else:
+                    markets = _fetch_markets_retrying(
+                        event_ticker_for(series, date.fromisoformat(d)), kalshi_client
+                    )
                 yes_q = _yes_quote(markets, st.city)
             except Exception as e:  # noqa: BLE001 - bucket grading degrades to NULL
                 report.failures.append(
